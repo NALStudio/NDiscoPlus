@@ -1,0 +1,53 @@
+﻿<MudDialog>
+    <DialogContent>
+        <MudTextField T="string"
+                      Text="@(GetText(trim: false))"
+                      TextChanged="SetText"
+                      Immediate="true"
+                      Label="Rename Profile"
+                      Placeholder="@(UnnamedProfile)" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Submit">Rename</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    public const string UnnamedProfile = "Unnamed Profile";
+
+    [CascadingParameter]
+    private MudDialogInstance? MudDialog { get; set; }
+
+    [Parameter]
+    public string? InitialText { get; set; }
+    private string? _text;
+
+    const int kNameMaxLength = 64;
+
+    public string GetText(bool trim)
+    {
+        if (_text is null)
+            SetText(InitialText ?? string.Empty);
+
+        string output = _text!;
+        if (trim)
+            output = output.Trim();
+        return output;
+    }
+
+    public void SetText(string text)
+    {
+        text = text.TrimStart();
+        while (text.EndsWith("  "))
+            text = text[..^1];
+        if (text.Length > kNameMaxLength)
+            text = text[..kNameMaxLength];
+
+        _text = text;
+    }
+
+    private void Submit() => MudDialog!.Close<string>(GetText(trim: true) ?? string.Empty);
+    private void Cancel() => MudDialog!.Cancel();
+
+}

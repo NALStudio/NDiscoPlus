@@ -1,0 +1,40 @@
+﻿@using NDiscoPlus.Components.Elements.LightHandlerConfigEditor.HueLightHandlerConfigEditor.SubEditors
+@using NDiscoPlus.Code.LightHandlers.Hue
+
+@inherits LightHandlerConfigEditor<HueLightHandlerConfig>
+
+<CascadingValue Name="Config" Value="Config">
+    <CascadingValue Name="ConfigHasChanged" Value="@ConfigHasChanged">
+        @if (Config.BridgeIP is null)
+        {
+            <HueFindBridgesSubEditor />
+        }
+        else if (Config.BridgeCredentials is null)
+        {
+            <HuePressBridgeSubEditor />
+        }
+        else
+        {
+            if (configValid)
+            {
+                <HueBridgeLoggedInSubEditor />
+            }
+            else
+            {
+                <HueBridgeErrorSubEditor />
+            }
+        }
+    </CascadingValue>
+</CascadingValue>
+
+@code {
+    bool configValid = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        configValid = await Config.CreateLightHandler().ValidateConfig(null);
+        StateHasChanged();
+    }
+
+    private void ConfigHasChanged() => this.StateHasChanged();
+}

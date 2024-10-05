@@ -1,0 +1,155 @@
+﻿@using NDiscoPlus.Code.JavaScriptInterop
+@using NDiscoPlus.Code.LightHandlers.Screen
+@using NDiscoPlus.Shared
+@using NDiscoPlus.Shared.Models
+@using NDiscoPlus.Shared.Models.Color
+@using NDiscoPlus.Components
+@using System.Collections.Immutable
+@using System.Diagnostics
+
+@inherits LightHandlerConfigEditor<ScreenLightHandlerConfig>
+
+@implements IAsyncDisposable
+
+@inject IJSRuntime JSRuntime
+
+<MudStack>
+    <MudRadioGroup T="ScreenLightCount"
+                    @bind-Value=Config.LightCount>
+        @foreach (ScreenLightCount lightCount in Enum.GetValues<ScreenLightCount>())
+        {
+            <MudRadio Color="Color.Primary" Value="@lightCount">@(lightCount.ToString() + " Lights")</MudRadio>
+        }
+    </MudRadioGroup>
+
+    <MudDivider />
+
+    <MudTooltip Text="Aspect ratio affects the positioning of screen lights relative to the room.">
+        <MudText>Aspect Ratio</MudText>
+    </MudTooltip>
+    <div>
+    <MudStack Row="true">
+        <MudNumericField @bind-Value=Config.AspectRatioHorizontal Label="Horizontal" HelperText="@(Config.AspectRatio.ToString())" Variant="Variant.Outlined" Max="32" Min="1" />
+        <MudNumericField @bind-Value=Config.AspectRatioVertical Label="Vertical" Variant="Variant.Outlined" Max="32" Min="1" />
+    </MudStack>
+    </div>
+
+    <MudDivider />
+
+    <div>
+        <MudSwitch @bind-Value=Config.UseHDR Color="Color.Primary" Disabled="true" >
+            Use HDR
+        </MudSwitch>
+        @if (Config.UseHDR)
+        {
+            <MudText>If you see a lot of white in the preview, it might mean that your display doesn't support HDR.</MudText>
+        }
+    </div>
+
+    <MudDivider />
+
+    <div>
+        <MudText Align="Align.Left"><strong>Preview:</strong></MudText>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            <GradientCanvas UseHDR="@(Config.UseHDR)"
+                            Colors="GetPreviewColors()"
+                            Width="@(canvasSize.Width)"
+                            Height="@(canvasSize.Height)"
+                            Style="border-radius:16px; overflow:hidden;"/>
+            <MudText>@Config.AspectRatioVertical</MudText>
+        </MudStack>
+        <MudText Style=@($"width:{canvasSize.Width}px;") Align="Align.Center">@(Config.AspectRatioHorizontal)</MudText>
+    </div>
+</MudStack>
+
+@code {
+    private readonly record struct PreviewGradient(ImmutableArray<NDPColor> Colors, bool HDR);
+
+    private PreviewGradient? _preview;
+
+    private WindowSizeProvider? windowSize;
+    private (int Width, int Height) canvasSize;
+
+    protected override async Task OnInitializedAsync()
+    {
+        windowSize = await WindowSizeProvider.CreateAsync(JSRuntime);
+    }
+
+    private IReadOnlyList<NDPColor> GetPreviewColors()
+    {
+        int lightCount = (int)Config.LightCount;
+        bool hdr = Config.UseHDR;
+
+        if (_preview is not PreviewGradient pg || pg.Colors.Length != lightCount || pg.HDR != hdr)
+        {
+            _preview = new(
+                Colors: ConstructColors(lightCount, hdr).ToImmutableArray(),
+                hdr
+            );
+            Debug.Assert(_preview.Value.Colors.Length == lightCount);
+        }
+
+        return _preview.Value.Colors;
+    }
+
+    private static IEnumerable<NDPColor> ConstructColors(int count, bool HDR)
+    {
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(count, 6);
+
+        NDPColor red = HDR ? ColorGamut.hueGamutC.Red.ToColor() : NDPColor.FromSRGB(1d, 0d, 0d);
+        NDPColor green = HDR ? ColorGamut.hueGamutC.Green.ToColor() : NDPColor.FromSRGB(0d, 1d, 0d);
+        NDPColor blue = HDR ? ColorGamut.hueGamutC.Blue.ToColor() : NDPColor.FromSRGB(0d, 0d, 1d);
+
+        if (count > 0)
+            yield return red;
+        if (count > 3)
+            yield return NDPColor.Lerp(red, green, 0.5);
+        if (count > 1)
+            yield return green;
+        if (count > 4)
+            yield return NDPColor.Lerp(green, blue, 0.5);
+        if (count > 2)
+            yield return blue;
+        if (count > 5)
+            yield return NDPColor.Lerp(blue, red, 0.5);
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        var newCanvasSize = GetCanvasSize();
+        if (canvasSize != newCanvasSize)
+        {
+            canvasSize = newCanvasSize;
+            StateHasChanged();
+        }
+    }
+
+    private (int Width, int Height) GetCanvasSize()
+    {
+        static int RoundToInt(double value) => (int)Math.Round(value);
+
+        int windowWidth = windowSize!.Width;
+
+        const int maxHeight = 540;
+        int maxWidth = RoundToInt(0.8d * windowWidth);
+
+        double maxAspect = maxWidth / ((double)maxHeight);
+
+        if (Config.AspectRatio > maxAspect)
+        {
+            // Width is limiting factor
+            return (maxWidth, RoundToInt(Config.InverseAspectRatio * maxWidth));
+        }
+        else
+        {
+            // Height is limiting factor
+            return (RoundToInt(Config.AspectRatio * maxHeight), maxHeight);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (windowSize is not null)
+            await windowSize.DisposeAsync();
+    }
+}

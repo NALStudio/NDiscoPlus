@@ -1,0 +1,85 @@
+﻿@using NDiscoPlus.Code.LightHandlers.Hue
+@using System.Collections.Immutable
+@using NDiscoPlus.Code.NDPIcons
+@using NDiscoPlus.PhilipsHue.BridgeDiscovery
+@using NDiscoPlus.PhilipsHue.BridgeDiscovery.Models
+
+<MudPaper Class="mud-theme-primary" Elevation="3">
+    <MudList T="string">
+        <MudListSubheader>
+            <MudStack Row="true">
+                <MudText>@GetBridgesFoundText()</MudText>
+                <MudSpacer />
+
+                <Cooldown @ref=cooldownElement CooldownSeconds="(16 * 60)">
+                    <MudTooltip Delay="5000" Text="Reload Bridges">
+                        <MudIconButton Disabled="@(loadBridgesTask is null)"
+                                       OnClick="ReloadBridges"
+                                       Icon="@(Icons.Material.Rounded.Refresh)" />
+                    </MudTooltip>
+                </Cooldown>
+            </MudStack>
+        </MudListSubheader>
+
+        @if (loadBridgesTask?.IsCompleted == true && loadBridgesTask.Result is not null)
+        {
+            @foreach (DiscoveredBridge bridge in loadBridgesTask.Result)
+            {
+                <MudListItem OnClick="@(() => SelectBridge(bridge))"
+                             Icon="@(HueIcons.BridgeV2)"
+                             Text="@(bridge.Name ?? bridge.BridgeId)"
+                             SecondaryText="@(bridge.IpAddress)" />
+            }
+        }
+    </MudList>
+</MudPaper>
+
+@code {
+    [CascadingParameter]
+    public required HueLightHandlerConfig Config { get; init; }
+
+    [CascadingParameter]
+    public required Action ConfigHasChanged { get; init; }
+
+    private Task<ImmutableArray<DiscoveredBridge>?>? loadBridgesTask;
+
+    private Cooldown? cooldownElement;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // initialize bridges after first render
+        // so that cooldownElement contains a reference when reloading bridges
+        // which means that we can start the cooldown from the get-go thus making sure we don't hit the ratelimit
+        if (firstRender)
+            ReloadBridges();
+    }
+
+    private void ReloadBridges()
+    {
+        loadBridgesTask = _LoadBridges();
+        loadBridgesTask.ContinueWith(_ => StateHasChanged());
+    }
+
+    private async Task<ImmutableArray<DiscoveredBridge>?> _LoadBridges()
+    {
+        DiscoveredBridge[]? bridges = await HueBridgeDiscovery.Endpoint();
+        if (bridges is null)
+            cooldownElement!.SkipCooldown();
+        return bridges?.ToImmutableArray();
+    }
+
+    private void SelectBridge(DiscoveredBridge bridge)
+    {
+        throw new NotImplementedException();
+    }
+
+    private string GetBridgesFoundText()
+    {
+        if (loadBridgesTask?.IsCompleted != true)
+            return "Loading...";
+        else if (!loadBridgesTask.Result.HasValue)
+            return "Unknown error.";
+        else
+            return $"{loadBridgesTask.Result.Value.Length} bridges found";
+    }
+}

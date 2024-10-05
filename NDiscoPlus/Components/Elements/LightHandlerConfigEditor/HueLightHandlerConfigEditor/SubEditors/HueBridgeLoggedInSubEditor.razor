@@ -1,0 +1,11 @@
+﻿@using NDiscoPlus.Code.LightHandlers.Hue
+
+<h3>HueLightHandlerConfigEditorBridgeLoggedIn</h3>
+
+@code {
+    [CascadingParameter]
+    public required HueLightHandlerConfig Config { get; init; }
+
+    [CascadingParameter]
+    public required Action ConfigHasChanged { get; init; }
+}

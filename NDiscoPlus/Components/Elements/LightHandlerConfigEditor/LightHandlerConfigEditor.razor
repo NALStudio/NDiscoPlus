@@ -1,0 +1,16 @@
+﻿@using NDiscoPlus.Code.LightHandlers
+
+@typeparam T where T : LightHandlerConfig
+
+@code {
+    [Parameter, EditorRequired]
+    public required T Config { get; set; }
+
+    public static Dictionary<string, object> CreateParametersDictionary(LightHandlerConfig config)
+    {
+        return new()
+        {
+            { nameof(Config), config }
+        };
+    }
+}

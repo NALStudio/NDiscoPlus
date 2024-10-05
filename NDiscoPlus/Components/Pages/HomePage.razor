@@ -1,0 +1,664 @@
+﻿@page "/home"
+@* TEMPORARY FOR DEBUGGING DIAGNOSTIC PURPOSES *@
+
+@using Microsoft.Extensions.Logging
+@using MudBlazor.Utilities
+@using NDiscoPlus.Code
+@using NDiscoPlus.Code.JavaScriptInterop
+@using NDiscoPlus.Code.LightHandlers
+@using NDiscoPlus.Code.LightHandlers.Screen
+@using NDiscoPlus.Code.Models
+@using NDiscoPlus.Code.Models.LightProfile
+@using NDiscoPlus.Components.Elements
+@using NDiscoPlus.Components.Layout
+@using NDiscoPlus.Shared
+@using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics
+@using NDiscoPlus.Shared.Helpers
+@using NDiscoPlus.Shared.Models.Color
+@using NDiscoPlus.Shared.Music
+@using NDiscoPlus.Shared.Models
+@using NDiscoPlus.Spotify.Models
+@using NDiscoPlus.Spotify.Players
+@using NDiscoPlus.Components;
+@using SkiaSharp
+@using SpotifyAPI.Web
+@using System.Diagnostics
+@using System.Text.Json
+@using System.Web
+@using System.Globalization
+@using System.Collections.Frozen
+@using System.Collections.Immutable
+@using System.Collections.Concurrent
+@using System.Diagnostics.CodeAnalysis
+
+@layout SpotifyLayout
+
+@inject NavigationManager navigationManager
+@inject ILogger<HomePage> logger
+@inject ILogger<SpotifyWebPlayer> playerLogger
+@inject IJSRuntime JSRuntime
+@inject ISnackbar Snackbar
+@inject SpotifyService Spotify
+@inject HttpClient httpClient
+
+@inject FullscreenProvider Fullscreen
+
+@implements IAsyncDisposable
+
+<PageTitle>@("NDiscoPlus" + (interpreterFps is InterpreterFPS fps ? $" - {fps.Average:0.00} fps ({fps.Min:0.00} min)" : string.Empty))</PageTitle>
+
+<div @onmousemove="OnMouseMove" style=@AddCursorStyle("width:100vw; height:100vh; overflow: hidden;")>
+<div style="position:fixed;top:0;bottom:0;left:0;right:0;">
+    <GradientCanvas Colors="@BestBackgroundGradientOption"
+                    Width="@(windowSize?.Width ?? 1920)"
+                    Height="@(windowSize?.Height ?? 1080)"
+                    UseHDR="@(lightHandling?.ScreenLightHandlerSingleton.Render.HDR ?? false)" />
+</div>
+<!-- padding-top:20vh and Justify.FlexStart since centering the item looks a bit stupid... Moving the elements slightly up looks nicer. -->
+<MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
+    @if(context is not null) {
+        <MudImage
+            Src="@context.Track.LargestImage.Url"
+            Width="256"
+            Height="256"/>
+    }
+    else
+    {
+        <div style="background:#1DB954;padding:64px">
+            <MudImage
+                Src="./img/spotify_icon_white.svg"
+                Width="128"
+                Height="128"/>
+        </div>
+    }
+    <div style="min-width:256px;">
+        <MudText Style="line-height:1.0; font-size:x-large;"><b>@(context?.Track.Name ?? "Not Playing...")</b></MudText>
+        @if(context is not null)
+        {
+            <MudText Style="font-size:medium;padding-bottom:1em">@string.Join(", ", context.Track.Artists)</MudText>
+        }
+    </div>
+    <div style="width:80%; max-width:512px; padding-bottom:64px">
+        @if(context is not null)
+        {
+            <MudProgressLinear
+                Value="@(context.Progress.TotalSeconds)"
+                Min="0"
+                Max="@(context.Track.Length.TotalSeconds)"
+                Rounded="true"
+                />
+            <MudStack Style="" Row="true" Justify="Justify.SpaceBetween">
+                <MudText Style="line-height:2; font-size:small;">@(context.Progress.ToString(TimespanFormat))</MudText>
+                <MudText Style="line-height:2; font-size:small;">@(context.Track.Length.ToString(TimespanFormat))</MudText>
+            </MudStack>
+        }
+    </div>
+    @if (!HideUI)
+    {
+        <MudButton StartIcon="@Icons.Material.Rounded.Lightbulb"
+                    Variant="@(IsPlaying ? Variant.Outlined : Variant.Filled)"
+                    Size=Size.Large
+                    Color=MudBlazor.Color.Primary
+                    Disabled=@(!Spotify.IsLoggedIn || playStarting)
+                    OnClick=TogglePlay>
+            @(IsPlaying ? "Stop" : "Play")
+        </MudButton>
+    }
+</MudStack>
+@if (!HideUI)
+{
+    <MudStack Style="position:fixed; top:0; left:0; padding:16px">
+        <MudTooltip Text="Open Settings" Placement="Placement.Right" Delay="1000">
+            <MudIconButton Icon="@Icons.Material.Rounded.Settings"
+                            Size="Size.Large"
+                            OnClick="OpenSettings"
+                            Disabled="IsPlaying"
+                            />
+        </MudTooltip>
+        <MudTooltip Text="Toggle Fullscreen" Placement="Placement.Right" Delay="1000">
+            <MudIconButton Icon="@Icons.Material.Rounded.Fullscreen"
+                            Size="Size.Large"
+                            OnClick="ToggleFullscreen" />
+        </MudTooltip>
+        <MudTooltip Text="@($"Turn {(IsWakeLockEnabled ? "Off" : "On")} Wake Lock")" Placement="Placement.Right" Delay="1000">
+            <MudToggleIconButton Icon="@(Icons.Material.Rounded.Brightness4)"
+                                    ToggledIcon="@(Icons.Material.Rounded.Brightness5)"
+                                    Size="Size.Large"
+                                    Toggled="IsWakeLockEnabled"
+                                    ToggledChanged="@SetWakeLock"/>
+        </MudTooltip>
+        @if (DebugEnabled)
+        {
+            <!-- TODO: Not implemented in MAUI port yet...
+            <MudTooltip Text="DEBUG: Open Effect Visualizer" Placement="Placement.Right" Delay="1000">
+                <MudIconButton Disabled="@(lightHandling?.CurrentData is null)"
+                                Icon="@Icons.Material.Rounded.BugReport"
+                                Size="Size.Large"
+                                OnClick="@(async () => await DebugOpenEffectVisualizer(lightHandling!.CurrentData!))" />
+            </MudTooltip>
+            -->
+            <!-- Didn't work... Hot Reload changes didn't apply.
+            <MudTooltip Text="DEBUG: Restart NDP And Regenerate Effects" Placement="Placement.Right" Delay="1000">
+                <MudIconButton Disabled="(lightHandling is null)"
+                                Icon="Icons.Material.Rounded.Refresh"
+                                Size="Size.Large"
+                                OnClick="(async () => await DebugRestartServiceAndRegenerateEffects())" />
+            </MudTooltip>
+            -->
+        }
+    </MudStack>
+}
+<MudStack AlignItems="AlignItems.End" Style="">
+    @if(context?.NextTrack is SpotifyPlayerTrack nextTrack)
+    {
+        <MudPaper Elevation="8" Class="next_track_fadein" Style="position: fixed; top:24px; right: 24px; background:#000000AA; padding:16px; border-radius:16px;">
+        <MudStack Row="true" AlignItems="AlignItems.Center">
+            <MudImage Src=@(nextTrack.SmallestImage.Url)
+                    Width="48"
+                    Height="48" />
+            <MudStack Spacing="0">
+                <MudText Style="font-size:small; color:#FFFFFFAA">
+                    Next Track
+                </MudText>
+                <MudText Style="line-height:1.0; font-size:x-large; white-space:nowrap; color:white">
+                    @(nextTrack.Name)
+                </MudText>
+            </MudStack>
+        </MudStack>
+    </MudPaper>
+    }
+</MudStack>
+</div>
+
+<style>
+.next_track_fadein {
+    animation: fadein 2s;
+}
+
+@@keyframes fadein {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+</style>
+
+@code {
+    #if DEBUG
+    public bool DebugEnabled { get; } = true;
+    #else
+    [SupplyParameterFromQuery(Name = "debug")]
+    public bool DebugEnabled { get; init; }
+#endif
+
+    record struct PaletteGradient(NDPColorPalette Palette)
+    {
+        private ImmutableArray<NDPColor>? gradient = null;
+        public ImmutableArray<NDPColor>? Gradient
+        {
+            get
+            {
+                gradient ??= PaletteToGradient(Palette);
+                return gradient;
+            }
+        }
+        public ImmutableArray<NDPColor> GradientMustNotBeNull
+        {
+            get
+            {
+                ImmutableArray<NDPColor>? gradient = Gradient;
+                if (!gradient.HasValue)
+                    throw new InvalidOperationException("Palette cannot be turned into a gradient.");
+                return gradient.Value;
+            }
+        }
+
+        static ImmutableArray<NDPColor>? PaletteToGradient(NDPColorPalette palette)
+        {
+            if (palette.Count < 4)
+                return null;
+
+            return palette.Take(4).ToImmutableArray();
+        }
+    }
+
+    record LightHandlingData(
+        ImmutableArray<LightHandler> Handlers,
+        ImmutableArray<LightRecord> Lights,
+        ScreenLightHandler ScreenLightHandlerSingleton
+    )
+    {
+        public string? CurrentDataTrackId{ get; set; }
+        public Task<Shared.Models.NDPData>? CurrentDataTask { get; set; }
+        public Shared.Models.NDPData? CurrentData => CurrentDataTask?.IsCompleted == true ? CurrentDataTask.Result : null;
+
+        public string? NextDataTrackId { get; set; }
+        public Task<Shared.Models.NDPData>? NextDataTask { get; set; }
+        public Shared.Models.NDPData? NextData => NextDataTask?.IsCompleted == true ? NextDataTask.Result : null;
+    }
+
+    readonly record struct FetchTask(string TrackId, Task<NDPData> Task);
+    readonly record struct InterpreterFPS(double Average, double Min);
+
+    const string TimespanFormat = @"mm\:ss";
+
+    static readonly PaletteGradient defaultGradient = new(NDPDefaultPalettes.DefaultSRGB);
+    public IReadOnlyList<NDPColor> BestBackgroundGradientOption => lightHandling?.ScreenLightHandlerSingleton.Render.Colors ?? TryGetTrackGradient(context?.Track)?.Gradient ?? defaultGradient.GradientMustNotBeNull;
+
+    // Large capacity is fine. I'd rather use a bit more memory than compute a new gradient (heavy operation!)
+    readonly LRUCache<string, Task<PaletteGradient?>> trackIdToGradientCache = new(capacity: 50);
+
+    LightInterpreter gradientLights = new();
+
+
+    LightHandlingData? lightHandling = null;
+    [MemberNotNullWhen(true, nameof(lightHandling))]
+    bool IsPlaying => lightHandling is not null;
+    bool playStarting = false;
+
+    const int targetFps = 75;
+    InterpreterFPS? interpreterFps;
+    const int interpreterFpsFramesCount = 25;
+    List<double> interpreterFpsFrames = new(capacity: interpreterFpsFramesCount);
+
+    SpotifyPlayerContext? context = null;
+
+    NDiscoPlusService? ndpService = null;
+
+    readonly List<ValueTask> lightHandlerUpdates = new();
+
+    private CancellationTokenSource? _playerTaskCancellation = null;
+    private Task? _playerTask = null;
+
+    private bool IsWakeLockEnabled => DeviceDisplay.Current.KeepScreenOn;
+
+    private WindowSizeProvider? windowSize;
+
+    protected override async Task OnInitializedAsync()
+    {
+        windowSize = await WindowSizeProvider.CreateAsync(JSRuntime);
+
+        ndpService = new(httpClient);
+
+        await Spotify.WaitForLogin();
+
+        _playerTaskCancellation = new();
+        _playerTask = StartPlayer(_playerTaskCancellation.Token);
+    }
+
+    #region Hide Mouse & UI Buttons
+    object hideCursorLock = new();
+    bool _hideCursor = false;
+
+    uint hideCursorTimerSeconds = 0; // use uint so that we never overflow (overflow time is more than 136 years)
+    const uint hideCursorAfterSeconds = 3;
+    System.Threading.Timer? hideCursorTimer = null;
+
+    bool HideUI
+    {
+        get
+        {
+            bool value;
+            lock(hideCursorLock)
+            {
+                value = _hideCursor;
+            }
+            return value;
+        }
+        set
+        {
+            lock(hideCursorLock)
+            {
+                _hideCursor = value;
+            }
+        }
+    }
+    string AddCursorStyle(string css)
+    {
+        if (HideUI)
+            return "cursor: none; " + css;
+        else
+            return css;
+    }
+
+    void HideCursorTick(object? state) {
+        ulong incremented = Interlocked.Increment(ref hideCursorTimerSeconds);
+        if (incremented >= hideCursorAfterSeconds) // hide cursor timer when enough seconds have elapsed. Timer accuracy is ~1 second.
+            HideUI = true;
+    }
+
+    void OnMouseMove() => ResetCursorHide();
+    void ResetCursorHide()
+    {
+        Interlocked.Exchange(ref hideCursorTimerSeconds, 0);
+        HideUI = false;
+    }
+    #endregion
+
+    #region Button Handlers
+    /* TODO: Missing after porting to MAUI
+    async Task DebugOpenEffectVisualizer(NDPData data)
+    {
+    ArgumentNullException.ThrowIfNull(data, nameof(data));
+
+    string serializedData = NDPData.Serialize(data);
+    await localStorage.SetItemAsStringAsync("effectVisualizerNDPData", serializedData);
+
+        TrackAudioAnalysis? analysis;
+        if (Spotify.IsLoggedIn)
+        analysis = await Spotify.Client.Tracks.GetAudioAnalysis(data.Track.Id);
+    else
+    analysis = null;
+
+    string serializedAnalysis = analysis is not null ? JsonSerializer.Serialize(analysis) : string.Empty;
+    await localStorage.SetItemAsStringAsync("effectVisualizerTrackAnalysis", serializedAnalysis);
+
+    await JSRuntime.InvokeVoidAsync("open", navigationManager.ToAbsoluteUri($"./effectVisualizer").AbsoluteUri, "_blank");
+    }
+    */
+
+    /* Didn't work... Hot Reload changes didn't apply
+    async Task DebugRestartServiceAndRegenerateEffects()
+        {
+        await CreateNDPService(recreate: true);
+        lightHandling!.CurrentDataTask = null;
+    }
+    */
+
+    void OpenSettings()
+    {
+        // Fix back navigation breaking background gradient by force loading (which makes the app force load when navigating backwards)
+        // UPDATE: Back navigation doesn't break background gradient anymore but spotify player state is duplicated during back navigation
+        navigationManager.NavigateTo("./settings");
+    }
+
+    void ToggleFullscreen()
+    {
+        Snackbar.Add("NOT IMPLEMENTED YET");
+        // if (await Fullscreen.IsFullscreen)
+        // {
+        //     await Fullscreen.ExitFullscreen();
+        //     await ReleaseWakeLock();
+        // }
+        // else
+        // {
+        //     await Fullscreen.RequestFullscreen();
+        //     await RequestWakeLock();
+        // }
+    }
+
+    void SetWakeLock(bool enabled)
+    {
+        DeviceDisplay.Current.KeepScreenOn = enabled;
+
+        if (enabled)
+        {
+            Snackbar.Add("Wake Lock Enabled", Severity.Warning, static config =>
+            {
+                config.Icon = Icons.Material.Rounded.Brightness5;
+                config.IconColor = Color.Warning;
+                config.SnackbarVariant = Variant.Outlined;
+                config.DuplicatesBehavior = SnackbarDuplicatesBehavior.Allow;
+            });
+        }
+        else
+        {
+            Snackbar.Add("Wake Lock Disabled", Severity.Normal, static config =>
+            {
+                config.Icon = Icons.Material.Rounded.Brightness4;
+                config.IconColor = Color.Primary;
+                config.SnackbarVariant = Variant.Outlined;
+                config.DuplicatesBehavior = SnackbarDuplicatesBehavior.Allow;
+            });
+        }
+    }
+
+    async Task TogglePlay()
+    {
+        if (playStarting)
+            throw new InvalidOperationException("Play toggle is already in progress!");
+
+        playStarting = true;
+
+        if (IsPlaying)
+            await InternalStopPlaying();
+        else
+            await InternalStartPlaying();
+
+        playStarting = false;
+    }
+    #endregion
+
+    #region Lights
+    async Task InternalStartPlaying()
+    {
+        Debug.Assert(hideCursorTimer is null);
+        hideCursorTimer = new Timer(HideCursorTick, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+
+        await Task.Delay(500);
+
+        LightProfile profile = LightProfile.LoadCurrent();
+        ScreenLightHandler screenLightHandlerSingleton = (ScreenLightHandler)profile.Handlers.Single(lh => lh is ScreenLightHandler);
+
+        bool startSuccessful = true;
+        ErrorMessageCollector errors = new();
+        List<NDPLight> lights = new();
+        foreach (LightHandler handler in profile.Handlers)
+        {
+            if (await handler.Start(errors, out NDPLight[] startedLights))
+                lights.AddRange(startedLights);
+            else
+                startSuccessful = false;
+        }
+
+        if (!startSuccessful)
+        {
+            logger.LogError("Start unsuccesful.");
+            foreach (LightHandler handler in profile.Handlers)
+                await handler.Stop();
+            await InternalStopPlaying();
+
+            foreach (string error in errors.Collect())
+                Snackbar.Add(error, Severity.Error, config => config.RequireInteraction = true);
+
+            return;
+        }
+
+        ImmutableArray<LightRecord> lightRecords = profile.BuildLightRecords(lights).ToImmutableArray();
+        lightHandling = new(profile.Handlers.ToImmutableArray(), lightRecords, screenLightHandlerSingleton);
+    }
+
+    async Task InternalStopPlaying()
+    {
+        Debug.Assert(hideCursorTimer is not null);
+        hideCursorTimer.Dispose();
+        hideCursorTimer = null;
+        ResetCursorHide();
+
+        await Task.Delay(500);
+
+        if (lightHandling is not null)
+        {
+            foreach (LightHandler handler in lightHandling.Handlers)
+                await handler.Stop();
+
+            lightHandling = null;
+        }
+    }
+    #endregion
+
+    #region Spotify
+    async Task StartPlayer(CancellationToken cancellationToken = default)
+    {
+        if (!Spotify.IsLoggedIn)
+            throw new InvalidOperationException("Spotify not logged in.");
+
+        SpotifyPlayer player = new SpotifyWebPlayer(Spotify.Client, playerLogger);
+
+        await foreach (SpotifyPlayerContext? context in player.ListenAsync(targetFps, cancellationToken))
+        {
+            this.context = context;
+
+            if (!IsPlaying)
+            {
+                interpreterFps = null;
+                StateHasChanged(); // So that the track progressed time keeps updating
+                continue;
+            }
+
+            SpotifyPlayerTrack? currentTrack = context?.Track;
+            SpotifyPlayerTrack? nextTrack = context?.NextTrack;
+
+            // Update current track light data
+            if (lightHandling.CurrentDataTrackId != currentTrack?.Id)
+            {
+                lightHandling.CurrentDataTrackId = currentTrack?.Id;
+                lightHandling.CurrentDataTask = null;
+            }
+            if (lightHandling.CurrentDataTask is null && lightHandling.CurrentDataTrackId is not null)
+            {
+                Debug.Assert(currentTrack is not null);
+                Debug.Assert(currentTrack.Id == lightHandling.CurrentDataTrackId);
+
+                if (lightHandling.CurrentDataTrackId == lightHandling.NextDataTrackId)
+                {
+                    // Steal data from the next track if the tracks are the same
+                    lightHandling.CurrentDataTask = lightHandling.NextDataTask;
+                }
+                else
+                {
+                    // Next track is different, we must compute new data
+                    PaletteGradient? gradient = TryGetTrackGradient(currentTrack);
+                    if (gradient is PaletteGradient pg)
+                        lightHandling.CurrentDataTask = ComputeData(Spotify.Client, currentTrack, pg.Palette, lightHandling);
+                }
+            }
+
+            // Update next track light data
+            if (lightHandling.NextDataTrackId != nextTrack?.Id)
+            {
+                lightHandling.NextDataTrackId = nextTrack?.Id;
+                lightHandling.NextDataTask = null;
+            }
+            if (lightHandling.NextDataTask is null && lightHandling.NextDataTrackId is not null)
+            {
+                Debug.Assert(nextTrack is not null);
+                Debug.Assert(nextTrack.Id == lightHandling.NextDataTrackId);
+
+                PaletteGradient? gradient = TryGetTrackGradient(nextTrack);
+                if (gradient is PaletteGradient pg)
+                    lightHandling.NextDataTask = ComputeData(Spotify.Client, nextTrack, pg.Palette, lightHandling);
+            }
+
+            // Default to all lights black if no effect data (for the light interpreter) has been computed yet
+            // TODO: Do not allocate this every frame
+            LightColorCollection lightColors = LightColorCollection.Black(lightHandling.Lights);
+
+            // if current light data has loaded, run interpreter
+            if (lightHandling.CurrentData is not null)
+            {
+                // no CurrentData can be loaded if context?.Track is null
+                Debug.Assert(context is not null);
+
+                try
+                {
+                    LightInterpreterResult result = gradientLights.Update(context.Progress, lightHandling.CurrentData);
+                    lightColors = result.Lights;
+                    interpreterFpsFrames.Add(result.FPS);
+                }
+                catch (Exception e)
+                {
+                    logger.LogError($"Lights update failed with error: '{e}'");
+                }
+
+                if (interpreterFpsFrames.Count >= interpreterFpsFramesCount)
+                {
+                    double avgFps = interpreterFpsFrames.Sum() / interpreterFpsFrames.Count;
+                    double minFps = interpreterFpsFrames.Min();
+                    interpreterFps = new(Average: avgFps, Min: minFps);
+
+                    interpreterFpsFrames.Clear();
+                }
+            }
+            else
+            {
+                interpreterFps = null;
+            }
+
+            // Update colors even if no data is available (to keep the connection on)
+            foreach (LightHandler handler in lightHandling.Handlers)
+            {
+                ValueTask updateTask = handler.Update(lightColors);
+                if (!updateTask.IsCompleted)
+                    lightHandlerUpdates.Add(updateTask);
+                else
+                    await updateTask; // if task is already completed (used synchronous ValueTask<T>), do not bother adding it to the list and await for any errors instead
+            }
+
+            // Remove finished updates (pop from top as it's faster than removing all finished values in the middle of the list)
+            while (lightHandlerUpdates.Count > 0 && lightHandlerUpdates[0].IsCompleted)
+            {
+                await lightHandlerUpdates[0]; // await so that we get any errors that might have happened.
+                lightHandlerUpdates.RemoveAt(0);
+            }
+
+            StateHasChanged();
+        }
+    }
+
+    PaletteGradient? TryGetTrackGradient(SpotifyPlayerTrack? track)
+    {
+        if (track is null)
+            return null;
+
+        Task<PaletteGradient?> gradient = trackIdToGradientCache.GetOrAdd(track.Id, _ => FetchImagePaletteGradient(track));
+        if (!gradient.IsCompleted)
+            return null;
+        return gradient.Result;
+    }
+
+    async Task<PaletteGradient?> FetchImagePaletteGradient(SpotifyPlayerTrack track)
+    {
+
+        Stopwatch sw = Stopwatch.StartNew();
+        NDPColorPalette? palette = await ndpService!.FetchImagePalette(track);
+        sw.Stop();
+
+        logger.LogInformation("({:0.000} ms) Computed image palette for track: '{}' ({})...", sw.ElapsedMilliseconds, track.Name, track.Id);
+        return palette.HasValue ? new PaletteGradient(palette.Value) : null;
+    }
+
+    async Task<NDPData> ComputeData(SpotifyClient spotify, SpotifyPlayerTrack track, NDPColorPalette? referencePalette, LightHandlingData lightHandling)
+    {
+        TrackAudioFeatures features = await spotify.Tracks.GetAudioFeatures(track.Id);
+        TrackAudioAnalysis analysis = await spotify.Tracks.GetAudioAnalysis(track.Id);
+
+        NDiscoPlusArgs args = new(track, features, analysis, EffectConfig.Default, lightHandling.Lights)
+        {
+            ReferencePalette = referencePalette,
+            AllowHDR = lightHandling.ScreenLightHandlerSingleton.Render.HDR
+        };
+
+        Stopwatch sw = Stopwatch.StartNew();
+        NDPData data = await Task.Run(() => ndpService!.ComputeData(args));
+        sw.Stop();
+
+        logger.LogInformation("({:0.000} ms) Computed data for track: '{}' ({}).", sw.ElapsedMilliseconds, track.Name, track.Id);
+        return data;
+    }
+    #endregion
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_playerTaskCancellation is not null)
+            await _playerTaskCancellation.CancelAsync();
+        if (_playerTask is not null)
+            await _playerTask;
+
+        if (windowSize is not null)
+            await windowSize.DisposeAsync();
+    }
+}

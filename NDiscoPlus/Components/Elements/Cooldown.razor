@@ -1,0 +1,105 @@
+﻿@using System.Diagnostics
+@using System.Diagnostics.CodeAnalysis
+@implements IDisposable
+
+@*
+    Wrap any mud elements that have implemented the ParentDisabled cascading value to disable them for the duration of cooldown.
+    Capture a @ref to this element and use StartCooldown() and SkipCooldown() functions to manage the cooldown.
+*@
+
+@if (cooldownRemaining is not null)
+{
+    <CascadingValue Name="ParentDisabled" Value="true">
+        @ChildContent
+    </CascadingValue>
+}
+else
+{
+    <!-- Do not cascade value when cooldown is null because we want parent forms etc. to be able to disable the button as well. -->
+    @ChildContent
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public uint CooldownSeconds { get; set; }
+
+    /// <summary>
+    /// Customize the cooldown format
+    /// </summary>
+    [Parameter]
+    public Func<uint, string> FormatCooldown { get; set; } = DefaultCooldownFormat;
+
+    [Parameter, EditorRequired]
+    public RenderFragment? ChildContent { get; set; }
+
+    private Timer? timer;
+    private uint? cooldownRemaining;
+
+    public void StartCooldown()
+    {
+        // if cooldown is already running,
+        // resets cooldown back to start
+
+        cooldownRemaining = CooldownSeconds;
+
+        if (timer is null)
+            timer = new(UpdateCooldown, null, 1000L, 1000L);
+    }
+
+    private void UpdateCooldown(object? state)
+    {
+        Debug.Assert(cooldownRemaining is not null);
+        cooldownRemaining--;
+        if (cooldownRemaining < 1)
+            StopCooldown();
+    }
+
+    private void StopCooldown()
+    {
+        timer!.Dispose();
+        timer = null;
+        cooldownRemaining = null;
+    }
+
+    public void SkipCooldown()
+    {
+        if (cooldownRemaining is not null)
+            StopCooldown();
+        // if no cooldown started => no-op
+    }
+
+    private string GetCooldownText()
+    {
+        if (cooldownRemaining is not uint cooldown)
+            return "<error>";
+
+        string formatted = FormatCooldown(cooldown);
+        return $"Cooldown: {formatted}";
+    }
+
+    private static string DefaultCooldownFormat(uint seconds)
+    {
+        uint value;
+        string unit;
+        if (seconds < 60)
+        {
+            value = seconds;
+            unit = "second";
+        }
+        else
+        {
+            value = seconds / 60u;
+            unit = "minute";
+        }
+
+        if (value == 1)
+            return $"{value} {unit}";
+        else
+            return $"{value} {unit}s";
+    }
+
+    public void Dispose()
+    {
+        timer?.Dispose();
+    }
+}

@@ -1,0 +1,439 @@
+﻿@page "/settings"
+
+@using System.Collections.Immutable
+@using Microsoft.Extensions.Logging
+@using NDiscoPlus.Code.LightHandlers
+@using NDiscoPlus.Code.Models
+@using NDiscoPlus.Code
+@using NDiscoPlus.Code.Models.LightProfile
+@using NDiscoPlus.Components
+@using NDiscoPlus.Components.Elements
+@using NDiscoPlus.Components.Elements.Dialogs
+@using NDiscoPlus.Components.Elements.LightHandlerConfigEditor
+@using NDiscoPlus.Components.Layout
+@using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics
+@using NDiscoPlus.Shared.Helpers
+@using NDiscoPlus.Shared.Models
+@using System.Diagnostics.CodeAnalysis
+@using System.Collections.ObjectModel
+@using System.Diagnostics
+@using System.Text
+@using System.Runtime.InteropServices
+
+@layout SpotifyLayout // So that we don't need to relogin every time we navigate back from the settings
+
+@inject NavigationManager navigationManager
+@inject ILogger<SettingsPage> logger;
+@inject IDialogService DialogService
+
+<PageTitle>NDiscoPlus Settings</PageTitle>
+
+<MudAppBar>
+    <MudIconButton Icon="@Icons.Material.Rounded.ArrowBack" Color="Color.Inherit" OnClick="NavigateBack" />
+
+    <MudForm Disabled="@(Profiles is null)">
+        <MudStack Row="true" Class="px-4 py-1" Spacing="1" Style="background:#ffffff; margin-left:24px; border-radius:8px" AlignItems="AlignItems.Center">
+            <MudSelect T=LightProfile Style="width:256px" Value="@(CurrentProfile)" ToStringFunc="@(profile => GetProfileName(profile))" ValueChanged="@ChangeProfile" Label="Profile">
+                @foreach (LightProfile profile in Profiles?.AllProfiles ?? Enumerable.Empty<LightProfile>())
+                {
+                    <MudSelectItem T="LightProfile" Value=@profile />
+                }
+            </MudSelect>
+            <MudIconButton Icon="@Icons.Material.Rounded.Edit" OnClick="ChangeCurrentProfileName" />
+
+            <MudDivider Style="height:48px; margin-right:8px" Vertical="true" />
+
+            <MudMenu Icon="@Icons.Material.Rounded.Add">
+                @foreach (LightHandlerImplementation impl in LightHandler.Implementations)
+                {
+                    <MudMenuItem OnClick="@(() => AddHandler(impl))">@(impl.DisplayName)</MudMenuItem>
+                }
+            </MudMenu>
+            <MudIconButton Icon="@Icons.Material.Rounded.Save" Disabled="@(!CurrentProfileEdited)" OnClick="SaveProfiles" />
+        </MudStack>
+    </MudForm>
+
+    <MudSpacer />
+
+    <MudImage Src="./img/logo/text_white.svg" />
+</MudAppBar>
+
+<MudMainContent Class="mt-16 pa-4">
+    <MudForm @ref=form @bind-IsTouched=_formIsTouched Disabled="@(Profiles is null)">
+        <!-- Light Configuration expansion panels -->
+        <MudExpansionPanels>
+            <MudExpansionPanel Class="mud-theme-primary" HideIcon="true">
+                <TitleContent>
+                    <MudStack Row="true" AlignItems="AlignItems.Center">
+                        <!-- Set margin and padding to center the text vertically -->
+                        <MudText><h5 style="margin:0;padding:0">Light Configuration</h5></MudText>
+                        <MudSpacer />
+                        @if (Profiles is not null)
+                        {
+                            <MudTooltip Text="@(GetLightsTooltip(Profiles.CurrentProfileLights))" Delay="1000">
+                                <MudBadge Color="@(Profiles.IsLoadingLights ? Color.Error : Color.Info)" Dot="@(Profiles.IsLoadingLights)" Content="@(Profiles.CurrentProfileLights.Count)">
+                                    <MudIcon Icon="@(Icons.Material.Rounded.Lightbulb)" Color="Color.Warning" />
+                                </MudBadge>
+                            </MudTooltip>
+                        }
+                        <MudTooltip Text="Refresh Lights" Delay="1000">
+                            <MudIconButton Icon="@(Icons.Material.Rounded.Refresh)"
+                                           Color="Color.Inherit"
+                                           Disabled="@(Profiles?.CanReloadLights != true)"
+                                           OnClick="ReloadLightsWrapper" />
+                        </MudTooltip>
+                    </MudStack>
+                </TitleContent>
+                <ChildContent>
+                    @if (CurrentProfile is not null)
+                    {
+                        @foreach (DiscoveredLight light in CurrentProfileLights!)
+                        {
+                            <LightConfigEditor Config="@GetConfiguration(light.Light.Id)"
+                                               ConfigChanged="@(value => SetConfiguration(light.Light.Id, value))"
+                                               Light="light.Light"
+                                               LightHandler="light.Handler"
+                                               SettingsOpenedChanged="LightConfigEditorSettingsOpened" />
+                        }
+                        @foreach (var missingLight in GetMissingLights())
+                        {
+                            <LightConfigEditor Config="@GetConfiguration(missingLight.Key)"
+                                               ConfigChanged="@(value => SetConfiguration(missingLight.Key, value))"
+                                               Light="null"
+                                               LightHandler="null"
+                                               SettingsOpenedChanged="LightConfigEditorSettingsOpened" />
+                        }
+                    }
+                </ChildContent>
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+
+        <!-- Set custom height and center divider in div vertically -->
+        <div style="height:24px; align-content:center;">
+            <MudDivider />
+        </div>
+
+        <!-- Handler Configuration expansion panels -->
+        <MudExpansionPanels MultiExpansion="true">
+            @foreach (LightHandler handler in CurrentProfile?.Handlers ?? Enumerable.Empty<LightHandler>())
+            {
+                LightHandlerConfig config = handler.Config;
+                var parameters = LightHandlerConfigEditor<LightHandlerConfig>.CreateParametersDictionary(config);
+                Type editorType = config.GetEditorType();
+
+                <MudExpansionPanel>
+                    <TitleContent>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Class="pr-3">  <!-- Padding right 3 to add space between stack items and expansion panel icon -->
+                            <MudIcon Icon="@(handler.Implementation.DisplayIcon)" />
+                            <MudText><strong>@(handler.Implementation.DisplayName)</strong></MudText>
+                            <MudSpacer />
+                            <div>
+                                <MudTooltip Text="@("Remove " + handler.Implementation.DisplayName)">
+                                    <MudIconButton Icon="@(Icons.Material.Rounded.RemoveCircleOutline)"
+                                                   Color="Color.Error"
+                                                   OnClick="@(() => RemoveHandler(handler))" />
+                                </MudTooltip>
+                            </div>
+                        </MudStack>
+                    </TitleContent>
+                    <ChildContent>
+                        <!-- If object could not be instantiated, one common cause can be that object does not inherit LightHandlerConfigEditor<T> -->
+                        <DynamicComponent Type="editorType" Parameters="@parameters" />
+                    </ChildContent>
+                </MudExpansionPanel>
+            }
+        </MudExpansionPanels>
+    </MudForm>
+</MudMainContent>
+
+<MudMessageBox @ref=_unsavedMessageBox Title="Unsaved Changes!" CancelText="Cancel">
+    <MessageContent>
+        There are unsaved messages.
+        Are you sure you want to discard them?
+    </MessageContent>
+    <YesButton>
+        <MudButton Color="Color.Error">Discard</MudButton>
+    </YesButton>
+</MudMessageBox>
+
+@code {
+    private readonly record struct DiscoveredLight(LightHandler Handler, NDPLight Light);
+
+    private class ProfileData
+    {
+        private readonly SettingsPage parent;
+
+        public LightProfile CurrentProfile { get;  }
+        public ImmutableArray<LightProfile> AllProfiles { get; }
+
+        /// <summary>
+        /// All of the lights discovered in <see cref="CurrentProfile"/>'s handlers.
+        /// </summary>
+        /// <remarks>
+        /// <para>Lights are loaded asynchronously after instantiation.</para>
+        /// <para>This observable collection will notify whenever a new light is discovered.</para>
+        /// </remarks>
+        public ReadOnlyObservableCollection<DiscoveredLight> CurrentProfileLights { get; }
+        private readonly ObservableCollection<DiscoveredLight> lights;
+
+        public bool IsLoadingLights => loadLightsTask is not null && !loadLightsTask.IsCompleted;
+        public bool CanReloadLights => !IsLoadingLights;
+        private Task? loadLightsTask = null;
+
+        private ProfileData(SettingsPage parent, LightProfile current, ImmutableArray<LightProfile> all)
+        {
+            this.parent = parent;
+
+            CurrentProfile = current;
+            AllProfiles = all;
+
+            lights = new();
+            CurrentProfileLights = new(lights);
+        }
+
+        public static ProfileData Load(SettingsPage parent)
+        {
+            LightProfile[] profiles = LightProfile.LoadAll();
+            LightProfile currentProfile = profiles[0]; // first profile is default
+
+            // Sort profiles alphabetically
+            Array.Sort<LightProfile>(profiles, static (a, b) => a.Name.CompareTo(b.Name));
+
+            ImmutableArray<LightProfile> profilesImmutable = ImmutableCollectionsMarshal.AsImmutableArray(profiles);
+
+            ProfileData pd = new(parent, currentProfile, profilesImmutable);
+            pd.ReloadLights();
+            return pd;
+        }
+
+        public void ReloadLights()
+        {
+            if (!CanReloadLights)
+                throw new InvalidOperationException("Light reload already active.");
+
+            loadLightsTask = LoadLights();
+            loadLightsTask.ContinueWith(_ => parent.StateHasChanged());
+        }
+
+        private async Task LoadLights()
+        {
+            lights.Clear();
+
+            foreach (LightHandler handler in CurrentProfile.Handlers)
+            {
+                bool configValid = await handler.ValidateConfig(null);
+                if (!configValid)
+                    continue;
+
+                await foreach (NDPLight l in handler.GetLights())
+                {
+                    DiscoveredLight light = new(handler, l);
+                    Bisect.InsortRight(lights, light, x => x.Light.DisplayName ?? "zzzzz"); // sort null to the end of the list using many z's
+                    parent.StateHasChanged();
+                }
+            }
+        }
+    }
+
+    [NotNullIfNotNull(nameof(Profiles))]
+    private LightProfile? CurrentProfile => Profiles?.CurrentProfile;
+    [NotNullIfNotNull(nameof(Profiles))]
+    private ReadOnlyObservableCollection<DiscoveredLight>? CurrentProfileLights => Profiles?.CurrentProfileLights;
+
+    private ProfileData? Profiles { get; set; }
+
+    private MudMessageBox? _unsavedMessageBox;
+
+    private MudForm? form;
+
+    private bool _formIsTouched = false;
+    private bool __currentProfileEdited = false;
+    private bool CurrentProfileEdited
+    {
+        get => _formIsTouched || __currentProfileEdited;
+        set
+        {
+            if (!value)
+                throw new ArgumentException("Cannot set value as false.");
+            __currentProfileEdited = true;
+        }
+    }
+    private void LightConfigEditorSettingsOpened(bool opened)
+    {
+        if (opened) 
+        {
+            CurrentProfileEdited = true;
+            StateHasChanged(); // State doesn't update otherwise for some reason...
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Profiles = ProfileData.Load(this);
+    }
+
+    private string GetProfileName(LightProfile profile)
+        => string.IsNullOrWhiteSpace(profile.Name) ? "Unnamed Profile" : profile.Name;
+
+    private void ReloadLightsWrapper()
+    {
+        if (Profiles is null)
+            throw new InvalidOperationException("Profile data is null");
+        Profiles.ReloadLights();
+    }
+
+    private async Task<bool> CanDiscardCurrentProfile()
+    {
+        if (!CurrentProfileEdited)
+            return true;
+
+        bool? result = await _unsavedMessageBox!.ShowAsync();
+        return result == true;
+    }
+
+    private LightConfig? GetConfiguration(LightId light)
+    {
+        ThrowIfProfileDataIsNull();
+
+        CurrentProfile.LightConfigurationOverrides.TryGetValue(light, out LightConfig? value);
+        return value;
+    }
+
+    private void SetConfiguration(LightId light, LightConfig? value)
+    {
+        ThrowIfProfileDataIsNull();
+
+        var configs = CurrentProfile.LightConfigurationOverrides;
+        if (value is not null)
+        {
+            _ = configs.TryAdd(light, value);
+            Debug.Assert(object.ReferenceEquals(configs[light], value));
+        }
+        else
+        {
+            _ = configs.Remove(light);
+        }
+    }
+
+    private Dictionary<LightId, LightConfig> GetMissingLights()
+    {
+        ThrowIfProfileDataIsNull();
+
+        // Copy dict
+        var lightChannelsCopy = CurrentProfile.LightConfigurationOverrides.ToDictionary();
+        foreach (DiscoveredLight light in CurrentProfileLights)
+            _ = lightChannelsCopy.Remove(light.Light.Id);
+
+        // The ones remaining are missing
+        return lightChannelsCopy;
+    }
+
+    private async Task SaveProfiles()
+    {
+        ThrowIfProfileDataIsNull();
+
+        await Task.Delay(500);
+        SaveAndReloadProfileData();
+    }
+
+    private void SaveAndReloadProfileData(LightProfile? newCurrentProfile = null)
+    {
+        ThrowIfProfileDataIsNull();
+
+        ProfileData profileData = Profiles;
+        Profiles = null;
+
+        LightProfile currentProfile = newCurrentProfile ?? profileData.CurrentProfile;
+        Debug.Assert(profileData.AllProfiles.Count(p => ReferenceEquals(p, newCurrentProfile)) == 1);
+
+        LightProfile.SaveAll(allProfiles: profileData.AllProfiles.ToArray(), currentProfile: currentProfile);
+
+        __currentProfileEdited = false;
+        form!.ResetTouched();
+        _formIsTouched = false;
+
+        Profiles = ProfileData.Load(this);
+    }
+
+    private async Task ChangeProfile(LightProfile newProfile)
+    {
+        ArgumentNullException.ThrowIfNull(newProfile);
+
+        if (newProfile == CurrentProfile)
+            return;
+
+        if (!(await CanDiscardCurrentProfile()))
+            return;
+
+        SaveAndReloadProfileData(newCurrentProfile: newProfile);
+    }
+
+    private async Task ChangeCurrentProfileName()
+    {
+        ThrowIfProfileDataIsNull();
+
+        string initialText = CurrentProfile.Name;
+        DialogParameters<RenameProfileDialog> parameters = new()
+        {
+            { p => p.InitialText, initialText }
+        };
+
+        DialogResult? res = await DialogService.Show<RenameProfileDialog>("Rename Profile", parameters).Result;
+        if (res?.Data is string name)
+        {
+            CurrentProfile.Name = name;
+            CurrentProfileEdited = true;
+        }
+    }
+
+    private void AddHandler(LightHandlerImplementation implementation)
+    {
+        ThrowIfProfileDataIsNull();
+
+        bool added = CurrentProfile.TryAddHandler(implementation.Type);
+        if (added)
+            CurrentProfileEdited = true;
+        else
+            _ = DialogService.ShowMessageBox("Maximum Handlers", "Cannot add handler, maximum handlers reached.");
+    }
+    private void RemoveHandler(LightHandler handler)
+    {
+        ThrowIfProfileDataIsNull();
+
+        bool removed = CurrentProfile.TryRemoveHandler(handler);
+        if (removed)
+            CurrentProfileEdited = true;
+        else
+            _ = DialogService.ShowMessageBox("Minimum Handlers", "Cannot remove handler, minimum handlers reached.");
+    }
+
+    private async Task NavigateBack()
+    {
+        if (!(await CanDiscardCurrentProfile()))
+            return;
+
+        navigationManager.NavigateTo(".");
+    }
+
+    [MemberNotNull(nameof(Profiles), nameof(CurrentProfile), nameof(CurrentProfileLights))]
+    private void ThrowIfProfileDataIsNull()
+    {
+        if (Profiles is null || CurrentProfile is null || CurrentProfileLights is null)
+            throw new InvalidOperationException("No profile data loaded.");
+    }
+
+    private static string GetLightsTooltip(IEnumerable<DiscoveredLight> lights)
+    {
+        StringBuilder sb = new();
+
+        foreach (IGrouping<string, DiscoveredLight> handlerLights in lights.GroupBy(l => l.Handler.Implementation.DisplayName))
+        {
+            sb.Append(handlerLights.Count());
+            sb.Append(' ');
+            sb.Append(handlerLights.Key);
+            sb.AppendLine(" lights");
+        }
+
+        return sb.ToString();
+    }
+}

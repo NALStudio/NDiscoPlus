@@ -1,0 +1,197 @@
+﻿@page "/welcome"
+
+@using NDiscoPlus.Code.Constants
+@using NDiscoPlus.Code.JavaScriptInterop
+@using NDiscoPlus.Code.NDPIcons
+@using NDiscoPlus.Components.Elements
+@using NDiscoPlus.Shared.Models.Color
+@using System.Diagnostics
+@using SpotifyAPI.Web
+@using NDiscoPlus.Components
+@using NDiscoPlus.Shared
+@using NDiscoPlus.Shared.Helpers
+@using System.Security.Cryptography
+
+@inject NavigationManager navigationManager
+@inject IJSRuntime JSRuntime
+
+@implements IAsyncDisposable
+
+<div style="position:fixed;top:0;bottom:0;left:0;right:0;">
+    <GradientCanvas Colors="@(GetColors())"
+                    Width="@(windowSize?.Width ?? 1920)"
+                    Height="@(windowSize?.Height ?? 1080)" />
+</div>
+<MudStack Spacing="12" AlignItems="AlignItems.Center" Justify="Justify.Center" Style="position:fixed;top:0;bottom:0;left:0;right:0;">
+    <MudImage Src="./img/logo/text_white.svg" Height="96" Style="max-width:90vw;user-select:none;" />
+    <MudButton StartIcon="@(AppIcons.SpotifyIcon)"
+               Variant="Variant.Filled"
+               Size="Size.Large"
+               Style="background:#1DB954;color:#ffffff"
+               OnClick="SendLoginRequest">
+                Login
+    </MudButton>
+</MudStack>
+
+@code {
+    class Animation
+    {
+        public const double SPEED = 0.25d;
+
+        public double Progress { get; private set; }
+        public NDPColor From { get; }
+        public NDPColor To {get;}
+
+        public Animation(NDPColor from, NDPColor to, double progressOffset)
+        {
+            Progress = progressOffset; // 0 + progressOffset
+            From = from;
+            To = to;
+        }
+
+        public NDPColor Interpolate()
+            => NDPColor.Lerp(From, To, Progress);
+
+        public bool Update(double deltaTime)
+        {
+            Progress += deltaTime * SPEED;
+            return Progress > 1d;
+        }
+    }
+
+    private Animation[] animations = new Animation[]
+    {
+        GenerateNewRandomAnimation(null, progressOffset: 0d / 4d),
+        GenerateNewRandomAnimation(null, progressOffset: 1d / 4d),
+        GenerateNewRandomAnimation(null, progressOffset: 2d / 4d),
+        GenerateNewRandomAnimation(null, progressOffset: 3d / 4d)
+    };
+    private NDPColor[] _cachedColorArray = new NDPColor[4];
+
+    private WindowSizeProvider? windowSize;
+
+    protected override async Task OnInitializedAsync()
+    {
+        windowSize = await WindowSizeProvider.CreateAsync(JSRuntime);
+        RenderLoop();
+    }
+
+    private IReadOnlyList<NDPColor> GetColors()
+    {
+        Debug.Assert(animations.Length == _cachedColorArray.Length);
+
+        for (int i = 0; i < animations.Length; i++)
+            _cachedColorArray[i] = animations[i].Interpolate();
+
+        return _cachedColorArray;
+    }
+
+    private static NDPColor GetRandomColor()
+        => Random.Shared.Choice<NDPColor>(NDPDefaultPalettes.DefaultSRGB);
+
+    private static Animation GenerateNewRandomAnimation(NDPColor? From, double progressOffset = 0d)
+    {
+        From ??= GetRandomColor();
+
+        NDPColor To;
+        do
+        {
+            To = GetRandomColor();
+        } while (To == From);
+
+        return new Animation(From.Value, To, progressOffset: progressOffset);
+    }
+
+    PeriodicTimer? timer;
+    Stopwatch? stopwatch;
+
+    private async void RenderLoop()
+    {
+        timer = new(TimeSpan.FromSeconds(0.01));
+        stopwatch = Stopwatch.StartNew();
+
+        while (await timer.WaitForNextTickAsync())
+        {
+            double deltaTime = stopwatch.Elapsed.TotalSeconds;
+            stopwatch.Restart();
+
+            for (int i = 0; i < animations.Length; i++)
+            {
+                Animation anim = animations[i];
+                bool finished = anim.Update(deltaTime);
+                if (finished)
+                    animations[i] = GenerateNewRandomAnimation(anim.To);
+            }
+
+            StateHasChanged();
+        }
+    }
+
+    private record AuthenticationData(Uri RedirectUri, string State);
+    private async Task SendLoginRequest()
+    {
+        (string verifier, string challenge) = PKCEUtil.GenerateCodes();
+        await Code.Settings.Authentication.SetSpotifyLoginVerifier(verifier);
+
+        string state = RandomNumberGenerator.GetString()
+        AuthenticationData authentication = new(
+            RedirectUri: new(NDPConstants.SpotifyRedirectUri),
+            State: 
+        );
+
+        LoginRequest loginRequest = new(
+            redirectUri,
+            NDPConstants.SpotifyClientId,
+            LoginRequest.ResponseType.Code
+        )
+        {
+            CodeChallengeMethod = "S256",
+            CodeChallenge = challenge,
+            Scope = NDPConstants.SpotifyScope,
+        };
+
+        await Authenticate(loginRequest.ToUri(), redirectUri);
+    }
+
+    public async Task<string> Authenticate(Uri loginRequestUri, AuthenticationData authentication)
+    {
+#if WINDOWS
+        WinUIEx.WebAuthenticatorResult result = await WinUIEx.WebAuthenticator.AuthenticateAsync(loginRequestUri, authentication.RedirectUri);
+        result.
+#else
+        throw new NotImplementedException();
+#endif
+    }
+
+    private async Task<bool> ParseResponse()
+    {
+        if (OAuthCode is null)
+            return false;
+
+        string? verifier = await Settings.Authentication.PopSpotifyLoginVerifier();
+        if (string.IsNullOrEmpty(verifier))
+            return false;
+
+        PKCETokenResponse oauthResp = await new OAuthClient().RequestToken(
+            new PKCETokenRequest(
+                NDPConstants.SpotifyClientId,
+                OAuthCode,
+                new Uri(NDPConstants.SpotifyRedirectUri),
+                verifier
+            )
+        );
+
+        StoredSpotifyRefreshToken refreshToken = new(oauthResp.RefreshToken, NDPConstants.SpotifyScope);
+        await Settings.Authentication.SetSpotifyRefreshToken(refreshToken);
+        return true;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (windowSize is not null)
+            await windowSize.DisposeAsync();
+
+        timer?.Dispose();
+        stopwatch?.Stop();
+    }
+}

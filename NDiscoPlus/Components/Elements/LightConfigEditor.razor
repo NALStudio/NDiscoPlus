@@ -1,0 +1,172 @@
+﻿@using NDiscoPlus.Code.LightHandlers
+@using NDiscoPlus.Code.Models.LightProfile
+@using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics
+@using NDiscoPlus.Shared.Models
+@using System.Collections.Frozen
+
+<MudStack Row="true">
+    @{
+        LightHandlerImplementation? impl = LightHandler?.Implementation;
+
+        <MudTooltip Color="@(impl is not null ? Color.Default : Color.Error)" Text="@(impl?.DisplayName ?? "Unknown")" Placement="Placement.Right">
+            <MudIcon Color="@(impl is not null ? Color.Inherit : Color.Error)" Icon="@(impl?.DisplayIcon ?? Icons.Material.Rounded.Warning)" />
+        </MudTooltip>
+        <MudText Color="@(Light is null ? Color.Error : Color.Inherit)">@LightNameOrUnknown</MudText>
+    }
+
+    <MudSpacer />
+
+    <MudIconButton Icon="@(Icons.Material.Rounded.Settings)"
+                   Color="@(ConfigEditEnabled ? Color.Info : Color.Inherit)"
+                   OnClick="@(SettingsOpened ? CloseSettings : OpenSettings)" />
+    <MudOverlay Visible="@SettingsOpened" AutoClose="true" OnClosed="CloseSettings" /> <!-- Overlay to catch any clicks outside of popover (so that we can close it automatically) -->
+    <MudPopover Open="@SettingsOpened"
+                AnchorOrigin="Origin.BottomRight"
+                TransformOrigin="Origin.TopRight"> <!-- I wanted the origins to be the other way around, but in that case the animation animates the controls off screen -->
+        <MudStack Class="pa-4" Spacing="0">
+            <MudText><h5>@(LightNameOrUnknown) Settings</h5></MudText>
+            <MudCheckBox Label="Auto"
+                            LabelPosition="LabelPosition.End"
+                            T="bool"
+                            Value="@(!ConfigEditEnabled)"
+                            ValueChanged="@(value => ConfigEditEnabledChanged(!value))" />
+                            <!-- Value is inverted because we display AUTO as 'on' when edit is disabled -->
+
+            <MudCollapse Expanded="@ConfigEditEnabled">
+                <div style="padding-top:8px;padding-bottom:8px;">
+                    <MudDivider />
+                </div>
+
+                <MudStack> <!-- New mud stack so that we can have spacing between the elements -->
+                    <MudSlider T="double"
+                                Style="padding-right:12px"
+                                Value="@(GetBrightness())" 
+                                ValueChanged="SetBrightness"
+                                Step="0.01d"
+                                Min="0d"
+                                Max="1d"
+                                ValueLabel="true"
+                                ValueLabelFormat="P0">
+                        Brightness
+                    </MudSlider>
+
+                    <div> <!-- Remove spacing between text and button group using div -->
+                        <MudText>Channel</MudText>
+                        <MudButtonGroup Variant="Variant.Filled">
+
+                            @foreach ((string name, Channel channel) in ChannelFlag.FlagItems)
+                            {
+                                <MudTooltip Text="@name" Delay="1000">
+                                    <MudToggleIconButton Icon="@(GetChannelIcon(channel))"
+                                                            Color="Color.Error"
+                                                            ToggledColor="Color.Success"
+                                                            Toggled="@(GetChannelEnabled(channel))"
+                                                            ToggledChanged="@((value) => SetChannelEnabled(channel, value))" />
+                                </MudTooltip>
+                            }
+                        </MudButtonGroup>
+                    </div>
+                </MudStack>
+            </MudCollapse>
+        </MudStack>
+    </MudPopover>
+</MudStack>
+
+@code {
+    private static readonly FrozenDictionary<Channel, string> _kChannelIcons = new Dictionary<Channel, string>()
+    {
+        { Channel.Background, Icons.Material.Rounded.Landscape },
+        { Channel.Default, Icons.Material.Rounded.Star },
+        { Channel.Flash, Icons.Material.Rounded.Bolt },
+        { Channel.Strobe, Icons.Material.Rounded.Highlight }
+    }.ToFrozenDictionary();
+    private const string _kDefaultIcon = Icons.Material.Rounded.QuestionMark;
+
+    [Parameter]
+    public LightHandler? LightHandler { get; set; }
+
+    [Parameter]
+    public NDPLight? Light { get; set; }
+
+    [Parameter, EditorRequired]
+    public LightConfig? Config { get; set; }
+
+    [Parameter, EditorRequired]
+    public Action<LightConfig?>? ConfigChanged { get; set; }
+
+    [Parameter]
+    public bool AllowLightRemove { get; set; } = false;
+
+    [Parameter]
+    public Action? LightRemoved { get; set; }
+
+    [Parameter]
+    public bool SettingsOpened { get; set; }
+    [Parameter]
+    public Action<bool>? SettingsOpenedChanged { get; set; }
+    // I could get form IsTouched to work across components
+    // so we'll just send an event when settings have been opened and set the touched manually instead
+
+    private string LightNameOrUnknown => Light?.DisplayName ?? "Unknown Light";
+
+    private void OpenSettings()
+    {
+        if (SettingsOpened)
+            return;
+
+        SettingsOpened = true;
+        SettingsOpenedChanged?.Invoke(true);
+    }
+    private void CloseSettings()
+    {
+        if (!SettingsOpened)
+            return;
+
+        SettingsOpened = false;
+        SettingsOpenedChanged?.Invoke(false);
+    }
+
+    private string GetChannelIcon(Channel channel)
+    {
+        if (_kChannelIcons.TryGetValue(channel, out string? icon))
+            return icon;
+        return _kDefaultIcon;
+    }
+
+    private bool ConfigEditEnabled => Config is not null;
+    private void ConfigEditEnabledChanged(bool value)
+    {
+        LightConfig? config = value ? new() : null;
+        Config = config;
+        ConfigChanged?.Invoke(config);
+    }
+
+    private bool GetChannelEnabled(Channel channel)
+        => (Config?.Channel ?? LightRecord.Default.Channel).HasFlag(channel);
+
+    private void SetChannelEnabled(Channel channel, bool enabled)
+    {
+        if (Config is null)
+            return;
+
+        if (enabled)
+            Config.Channel |= channel;
+        else
+            Config.Channel &= ~channel;
+
+        ConfigChanged?.Invoke(Config);
+    }
+
+    private double GetBrightness()
+    {
+        double value = Config?.Brightness ?? LightRecord.Default.Brightness;
+        return value;
+    }
+    private void SetBrightness(double value)
+    {
+        if (Config is null)
+            return;
+
+        Config.Brightness = value;
+    }
+}
