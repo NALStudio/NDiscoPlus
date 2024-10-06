@@ -1,8 +1,11 @@
 ﻿@page "/welcome"
 
+@using Microsoft.Extensions.Logging
 @using NDiscoPlus.Code.Constants
 @using NDiscoPlus.Code.JavaScriptInterop
+@using NDiscoPlus.Code.Models
 @using NDiscoPlus.Code.NDPIcons
+@using NDiscoPlus.Code
 @using NDiscoPlus.Components.Elements
 @using NDiscoPlus.Shared.Models.Color
 @using System.Diagnostics
@@ -14,6 +17,7 @@
 
 @inject NavigationManager navigationManager
 @inject IJSRuntime JSRuntime
+@inject ILogger<OnboardingPage> logger
 
 @implements IAsyncDisposable
 
@@ -27,13 +31,39 @@
     <MudButton StartIcon="@(AppIcons.SpotifyIcon)"
                Variant="Variant.Filled"
                Size="Size.Large"
-               Style="background:#1DB954;color:#ffffff"
-               OnClick="SendLoginRequest">
+               Disabled="IsAuthenticating"
+               Style=@(!IsAuthenticating ? "background:#1DB954;color:#ffffff" : "")
+               OnClick="StartAuthentication">
                 Login
     </MudButton>
 </MudStack>
 
 @code {
+    // Authentication code is in OnboardingPage.razor.cs file
+    // Since the razor file editor is utter shit
+
+    private bool IsAuthenticating { get; set; }
+    private async Task StartAuthentication()
+    {
+        IsAuthenticating = true;
+        bool success;
+        try
+        {
+            await AuthenticationHandling.AuthenticationRequest();
+            success = true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("An error happened during authentication. Error:\n{}", ex);
+            success = false;
+        }
+
+        if (success)
+            navigationManager.NavigateTo("./");
+        IsAuthenticating = false;
+    }
+
+
     class Animation
     {
         public const double SPEED = 0.25d;
@@ -125,65 +155,6 @@
 
             StateHasChanged();
         }
-    }
-
-    private record AuthenticationData(Uri RedirectUri, string State);
-    private async Task SendLoginRequest()
-    {
-        (string verifier, string challenge) = PKCEUtil.GenerateCodes();
-        await Code.Settings.Authentication.SetSpotifyLoginVerifier(verifier);
-
-        string state = RandomNumberGenerator.GetString()
-        AuthenticationData authentication = new(
-            RedirectUri: new(NDPConstants.SpotifyRedirectUri),
-            State: 
-        );
-
-        LoginRequest loginRequest = new(
-            redirectUri,
-            NDPConstants.SpotifyClientId,
-            LoginRequest.ResponseType.Code
-        )
-        {
-            CodeChallengeMethod = "S256",
-            CodeChallenge = challenge,
-            Scope = NDPConstants.SpotifyScope,
-        };
-
-        await Authenticate(loginRequest.ToUri(), redirectUri);
-    }
-
-    public async Task<string> Authenticate(Uri loginRequestUri, AuthenticationData authentication)
-    {
-#if WINDOWS
-        WinUIEx.WebAuthenticatorResult result = await WinUIEx.WebAuthenticator.AuthenticateAsync(loginRequestUri, authentication.RedirectUri);
-        result.
-#else
-        throw new NotImplementedException();
-#endif
-    }
-
-    private async Task<bool> ParseResponse()
-    {
-        if (OAuthCode is null)
-            return false;
-
-        string? verifier = await Settings.Authentication.PopSpotifyLoginVerifier();
-        if (string.IsNullOrEmpty(verifier))
-            return false;
-
-        PKCETokenResponse oauthResp = await new OAuthClient().RequestToken(
-            new PKCETokenRequest(
-                NDPConstants.SpotifyClientId,
-                OAuthCode,
-                new Uri(NDPConstants.SpotifyRedirectUri),
-                verifier
-            )
-        );
-
-        StoredSpotifyRefreshToken refreshToken = new(oauthResp.RefreshToken, NDPConstants.SpotifyScope);
-        await Settings.Authentication.SetSpotifyRefreshToken(refreshToken);
-        return true;
     }
 
     public async ValueTask DisposeAsync()

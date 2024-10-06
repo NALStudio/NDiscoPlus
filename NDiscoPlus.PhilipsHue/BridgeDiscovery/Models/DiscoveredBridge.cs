@@ -4,6 +4,8 @@ namespace NDiscoPlus.PhilipsHue.BridgeDiscovery.Models;
 
 public record DiscoveredBridge
 {
+    // JsonPropertyNames already added for when we implement discovery endpoint.
+
     [JsonPropertyName("name")]
     public required string? Name { get; init; }
 

@@ -3,6 +3,7 @@
 @using System.Collections.Immutable
 @using Microsoft.Extensions.Logging
 @using NDiscoPlus.Code.LightHandlers
+@using NDiscoPlus.Code.LightHandlers.Screen
 @using NDiscoPlus.Code.Models
 @using NDiscoPlus.Code
 @using NDiscoPlus.Code.Models.LightProfile
@@ -19,6 +20,7 @@
 @using System.Diagnostics
 @using System.Text
 @using System.Runtime.InteropServices
+@using NDiscoPlus.Shared.Models.Color
 
 @layout SpotifyLayout // So that we don't need to relogin every time we navigate back from the settings
 
@@ -26,8 +28,11 @@
 @inject ILogger<SettingsPage> logger;
 @inject IDialogService DialogService
 
+<!-- Page Title not needed in MAUI Blazor
 <PageTitle>NDiscoPlus Settings</PageTitle>
+-->
 
+<ScreenLightSignaler @ref=screenLightSignaler />
 <MudAppBar>
     <MudIconButton Icon="@Icons.Material.Rounded.ArrowBack" Color="Color.Inherit" OnClick="NavigateBack" />
 
@@ -66,7 +71,7 @@
                 <TitleContent>
                     <MudStack Row="true" AlignItems="AlignItems.Center">
                         <!-- Set margin and padding to center the text vertically -->
-                        <MudText><h5 style="margin:0;padding:0">Light Configuration</h5></MudText>
+                        <MudText><h3 style="margin:0;padding:0">Light Configuration</h3></MudText>
                         <MudSpacer />
                         @if (Profiles is not null)
                         {
@@ -93,6 +98,7 @@
                                                ConfigChanged="@(value => SetConfiguration(light.Light.Id, value))"
                                                Light="light.Light"
                                                LightHandler="light.Handler"
+                                               SignalRequested="@(async () => await SignalLight(light))"
                                                SettingsOpenedChanged="LightConfigEditorSettingsOpened" />
                         }
                         @foreach (var missingLight in GetMissingLights())
@@ -212,7 +218,7 @@
                 throw new InvalidOperationException("Light reload already active.");
 
             loadLightsTask = LoadLights();
-            loadLightsTask.ContinueWith(_ => parent.StateHasChanged());
+            loadLightsTask.ContinueWith(_ => parent.StateHasChanged(), TaskContinuationOptions.ExecuteSynchronously);
         }
 
         private async Task LoadLights()
@@ -245,6 +251,7 @@
     private MudMessageBox? _unsavedMessageBox;
 
     private MudForm? form;
+    private ScreenLightSignaler? screenLightSignaler;
 
     private bool _formIsTouched = false;
     private bool __currentProfileEdited = false;
@@ -280,6 +287,19 @@
         if (Profiles is null)
             throw new InvalidOperationException("Profile data is null");
         Profiles.ReloadLights();
+    }
+
+    private async Task SignalLight(DiscoveredLight light)
+    {
+        if (light.Handler is ScreenLightHandler slh)
+            slh.Signaler = screenLightSignaler;
+
+        NDPColor red;
+        if (light.Light.ColorGamut is ColorGamut cg)
+            red = cg.Red.ToColor();
+        else
+            red = NDPColor.FromLinearRGB(1d, 0d, 0d);
+        await light.Handler.Signal(light.Light.Id, red);
     }
 
     private async Task<bool> CanDiscardCurrentProfile()
@@ -344,7 +364,7 @@
         Profiles = null;
 
         LightProfile currentProfile = newCurrentProfile ?? profileData.CurrentProfile;
-        Debug.Assert(profileData.AllProfiles.Count(p => ReferenceEquals(p, newCurrentProfile)) == 1);
+        Debug.Assert(profileData.AllProfiles.Count(p => ReferenceEquals(p, currentProfile)) == 1);
 
         LightProfile.SaveAll(allProfiles: profileData.AllProfiles.ToArray(), currentProfile: currentProfile);
 

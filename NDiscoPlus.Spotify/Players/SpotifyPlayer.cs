@@ -16,27 +16,11 @@ public abstract class SpotifyPlayer
 
         double periodSeconds = 1d / frequency; // Hz = 1/s => s = 1/Hz
 
-        PeriodicTimer timer = new(TimeSpan.FromSeconds(periodSeconds));
+        using PeriodicTimer timer = new(TimeSpan.FromSeconds(periodSeconds));
 
-        while (true)
+        while (await timer.WaitForNextTickAsync(cancellationToken))
         {
-            // Catch result inside loop since yield return does not work inside a try catch block
-            bool result;
-            try
-            {
-                result = await timer.WaitForNextTickAsync(cancellationToken);
-            }
-            catch (OperationCanceledException)
-            {
-                result = false;
-            }
-
-            if (!result)
-            {
-                timer.Dispose();
-                yield break;
-            }
-
+            cancellationToken.ThrowIfCancellationRequested();
             yield return Update();
         }
     }

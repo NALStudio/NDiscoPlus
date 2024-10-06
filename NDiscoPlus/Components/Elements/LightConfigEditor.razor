@@ -16,6 +16,10 @@
 
     <MudSpacer />
 
+    <MudIconButton Icon="@(Icons.Material.Rounded.LocationSearching)"
+                   Color="Color.Inherit"
+                   Disabled="@(SignalRequested is null)"
+                   OnClick="SignalRequested!" />
     <MudIconButton Icon="@(Icons.Material.Rounded.Settings)"
                    Color="@(ConfigEditEnabled ? Color.Info : Color.Inherit)"
                    OnClick="@(SettingsOpened ? CloseSettings : OpenSettings)" />
@@ -24,7 +28,7 @@
                 AnchorOrigin="Origin.BottomRight"
                 TransformOrigin="Origin.TopRight"> <!-- I wanted the origins to be the other way around, but in that case the animation animates the controls off screen -->
         <MudStack Class="pa-4" Spacing="0">
-            <MudText><h5>@(LightNameOrUnknown) Settings</h5></MudText>
+            <MudText><h3>@(LightNameOrUnknown) Settings</h3></MudText>
             <MudCheckBox Label="Auto"
                             LabelPosition="LabelPosition.End"
                             T="bool"
@@ -99,6 +103,9 @@
 
     [Parameter]
     public Action? LightRemoved { get; set; }
+
+    [Parameter]
+    public Action? SignalRequested { get; set; }
 
     [Parameter]
     public bool SettingsOpened { get; set; }

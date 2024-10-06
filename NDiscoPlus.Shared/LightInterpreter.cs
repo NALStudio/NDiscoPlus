@@ -24,7 +24,6 @@ public readonly record struct LightInterpreterResult
     public LightColorCollection Lights { get; }
 
     public double FrameTime { get; }
-    public double FPS => 1d / FrameTime;
 }
 
 public class LightInterpreter

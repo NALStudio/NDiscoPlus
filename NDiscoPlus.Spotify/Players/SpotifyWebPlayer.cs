@@ -106,7 +106,7 @@ public class SpotifyWebPlayer : SpotifyPlayer
     /// </summary>
     private Task FetchPlayer(int? debugPollRate = null)
     {
-        if (playerFetch is null || playerFetch.IsCompleted)
+        if (playerFetch?.IsCompleted != false)
             playerFetch = _UnrestrictedFetchPlayer(debugPollRate: debugPollRate);
         return playerFetch;
     }

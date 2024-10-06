@@ -7,15 +7,33 @@ public static class ColorHelpers
     /// <summary>
     /// Arguments are clamped to the range 0-1.
     /// </summary>
-    public static string ToHTMLColorRGB(double r, double g, double b, double alpha = 1d)
+    public static string ToHTMLColorRGBA(double r, double g, double b, double a)
     {
-        byte red = BitResolution.AsUInt8(r);
-        byte green = BitResolution.AsUInt8(g);
-        byte blue = BitResolution.AsUInt8(b);
-        byte alpha_ = BitResolution.AsUInt8(alpha);
+        byte red = BitResolution.AsUInt8(r.Clamp01());
+        byte green = BitResolution.AsUInt8(g.Clamp01());
+        byte blue = BitResolution.AsUInt8(b.Clamp01());
+        byte alpha = BitResolution.AsUInt8(a.Clamp01());
 
-        return $"#{red:x2}{green:x2}{blue:x2}{alpha_:x2}";
+        return $"#{red:x2}{green:x2}{blue:x2}{alpha:x2}";
     }
+    /// <inheritdoc cref="ToHTMLColorRGBA(double, double, double, double)"/>
+    public static string ToHTMLColorRGBA((double R, double G, double B, double A) rgba)
+        => ToHTMLColorRGBA(rgba.R, rgba.G, rgba.B, rgba.A);
+
+    /// <summary>
+    /// Arguments are clamped to the range 0-1.
+    /// </summary>
+    public static string ToHTMLColorRGB(double r, double g, double b)
+    {
+        byte red = BitResolution.AsUInt8(r.Clamp01());
+        byte green = BitResolution.AsUInt8(g.Clamp01());
+        byte blue = BitResolution.AsUInt8(b.Clamp01());
+
+        return $"#{red:x2}{green:x2}{blue:x2}";
+    }
+    /// <inheritdoc cref="ToHTMLColorRGB(double, double, double)"/>
+    public static string ToHTMLColorRGB((double R, double G, double B) rgb)
+        => ToHTMLColorRGB(rgb.R, rgb.G, rgb.B);
 
     public static string ToHTMLColorXYZ(double x, double y, double z)
     {

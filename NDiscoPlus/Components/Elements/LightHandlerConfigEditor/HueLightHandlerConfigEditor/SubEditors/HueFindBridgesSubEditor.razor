@@ -1,23 +1,38 @@
-﻿@using NDiscoPlus.Code.LightHandlers.Hue
+﻿@using Microsoft.Extensions.Logging
+@using NDiscoPlus.Code.LightHandlers.Hue
 @using System.Collections.Immutable
 @using NDiscoPlus.Code.NDPIcons
 @using NDiscoPlus.PhilipsHue.BridgeDiscovery
 @using NDiscoPlus.PhilipsHue.BridgeDiscovery.Models
 
+@inject ILogger<HueFindBridgesSubEditor> logger
+
 <MudPaper Class="mud-theme-primary" Elevation="3">
-    <MudList T="string">
-        <MudListSubheader>
-            <MudStack Row="true">
-                <MudText>@GetBridgesFoundText()</MudText>
+    <MudList T="object">
+        <MudListSubheader Class="shades-text text-white">
+            <MudStack Row="true" AlignItems="AlignItems.Center">
+                <div>
+                    <MudText><h4>@GetBridgesFoundText()</h4></MudText>
+                    @if (loadBridgesTask?.IsCompleted == false)
+                    {
+                        <MudText Typo="Typo.caption">@GetMulticastSecondsRemaining()</MudText>
+                    }
+                </div>
                 <MudSpacer />
 
-                <Cooldown @ref=cooldownElement CooldownSeconds="(16 * 60)">
-                    <MudTooltip Delay="5000" Text="Reload Bridges">
-                        <MudIconButton Disabled="@(loadBridgesTask is null)"
-                                       OnClick="ReloadBridges"
+                @if (loadBridgesTask?.IsCompleted != false)
+                {
+                    <MudTooltip Delay="500" Text="Reload Bridges" Placement="Placement.Top">
+                        <MudIconButton OnClick="ReloadBridges"
+                                       Color="Color.Inherit"
                                        Icon="@(Icons.Material.Rounded.Refresh)" />
                     </MudTooltip>
-                </Cooldown>
+                }
+                else
+                {
+                    <MudProgressCircular Value="@(multicastElapsedSeconds + 1)" Max="@multicastSeconds"
+                                         Color="Color.Inherit"/>
+                }
             </MudStack>
         </MudListSubheader>
 
@@ -43,28 +58,50 @@
 
     private Task<ImmutableArray<DiscoveredBridge>?>? loadBridgesTask;
 
-    private Cooldown? cooldownElement;
+    private const int multicastSeconds = 11;
+    private int multicastElapsedSeconds = -1;
 
-    protected override void OnAfterRender(bool firstRender)
+    protected override void OnInitialized()
     {
-        // initialize bridges after first render
-        // so that cooldownElement contains a reference when reloading bridges
-        // which means that we can start the cooldown from the get-go thus making sure we don't hit the ratelimit
-        if (firstRender)
-            ReloadBridges();
+        ReloadBridges();
     }
 
     private void ReloadBridges()
     {
         loadBridgesTask = _LoadBridges();
-        loadBridgesTask.ContinueWith(_ => StateHasChanged());
+        loadBridgesTask.ContinueWith(_ => StateHasChanged(), TaskContinuationOptions.ExecuteSynchronously);
+        _ = UpdateMulticastProgress();
+    }
+
+    private async Task UpdateMulticastProgress()
+    {
+        multicastElapsedSeconds = 0;
+
+        using PeriodicTimer pt = new(TimeSpan.FromSeconds(1));
+
+        while (await pt.WaitForNextTickAsync())
+        {
+            multicastElapsedSeconds++;
+            StateHasChanged();
+
+            if (multicastElapsedSeconds >= multicastSeconds)
+                break;
+        }
     }
 
     private async Task<ImmutableArray<DiscoveredBridge>?> _LoadBridges()
     {
-        DiscoveredBridge[]? bridges = await HueBridgeDiscovery.Endpoint();
-        if (bridges is null)
-            cooldownElement!.SkipCooldown();
+        DiscoveredBridge[]? bridges;
+        try
+        {
+            bridges = await HueBridgeDiscovery.Multicast(TimeSpan.FromSeconds(multicastSeconds));
+        }
+        catch (Exception e)
+        {
+            logger.LogError("An error occured when discovering bridges:\n{}", e);
+            bridges = null;
+        }
+
         return bridges?.ToImmutableArray();
     }
 
@@ -76,10 +113,19 @@
     private string GetBridgesFoundText()
     {
         if (loadBridgesTask?.IsCompleted != true)
-            return "Loading...";
+            return $"Loading...";
         else if (!loadBridgesTask.Result.HasValue)
             return "Unknown error.";
         else
             return $"{loadBridgesTask.Result.Value.Length} bridges found";
+    }
+
+    private string GetMulticastSecondsRemaining()
+    {
+        int remaining = multicastSeconds - multicastElapsedSeconds - 1;
+        if (remaining != 1)
+            return $"{remaining} seconds remaining";
+        else
+            return $"{remaining} second remaining";
     }
 }

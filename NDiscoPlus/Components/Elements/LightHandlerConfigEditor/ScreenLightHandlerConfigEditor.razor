@@ -37,9 +37,11 @@
     <MudDivider />
 
     <div>
-        <MudSwitch @bind-Value=Config.UseHDR Color="Color.Primary" Disabled="true" >
-            Use HDR
-        </MudSwitch>
+        <MudTooltip Text="Not Implemented">
+            <MudSwitch @bind-Value=Config.UseHDR Color="Color.Primary" Disabled="true" >
+                Use HDR
+            </MudSwitch>
+        </MudTooltip>
         @if (Config.UseHDR)
         {
             <MudText>If you see a lot of white in the preview, it might mean that your display doesn't support HDR.</MudText>
@@ -128,7 +130,7 @@
     {
         static int RoundToInt(double value) => (int)Math.Round(value);
 
-        int windowWidth = windowSize!.Width;
+        int windowWidth = windowSize?.Width ?? 1920;
 
         const int maxHeight = 540;
         int maxWidth = RoundToInt(0.8d * windowWidth);

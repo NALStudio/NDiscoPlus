@@ -1,6 +1,9 @@
 ﻿using MudBlazor;
+using NDiscoPlus.Components.Elements;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
+using System.Diagnostics;
+using System.Runtime.Versioning;
 
 namespace NDiscoPlus.Code.LightHandlers.Screen;
 
@@ -33,6 +36,7 @@ internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
 
     // Publicly exposed parameters for screen light handling
     public RenderData Render { get; }
+    public ScreenLightSignaler? Signaler { get; set; }
 
     public ScreenLightHandler(ScreenLightHandlerConfig? config) : base(config)
     {
@@ -40,7 +44,7 @@ internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
     }
 
     protected override ScreenLightHandlerConfig CreateConfig()
-        => new ScreenLightHandlerConfig();
+        => new();
 
     private static NDPLight[] GetLights4(ColorGamut colorGamut)
     {
@@ -129,5 +133,28 @@ internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
     {
         lights = null;
         return new();
+    }
+
+    public override ValueTask Signal(LightId lightId, NDPColor color)
+    {
+        ScreenLightId light = (ScreenLightId)lightId;
+
+        if (Signaler is null)
+            throw new InvalidOperationException("Cannot signal without signaler.");
+
+        int lightIndex = light.Index;
+        int lightCount = light.TotalLightCount;
+
+        const int rowCount = 2;
+        int lightsPerRow = lightCount / rowCount;
+        Debug.Assert((lightsPerRow * rowCount) == lightCount);
+
+        (int yIndex, int xIndex) = Math.DivRem(light.Index, lightsPerRow);
+
+        double x = xIndex / (double)(lightsPerRow - 1);
+        double y = yIndex / (double)(rowCount - 1);
+        Signaler.Signal(x, y, color);
+
+        return ValueTask.CompletedTask;
     }
 }

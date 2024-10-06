@@ -20,5 +20,5 @@ public class EffectConfig
 
     public double StrobeCCT { get; init; } = 5000;
     public StrobeStyles StrobeStyle { get; init; } = StrobeStyles.Instant;
-    public NDPColor StrobeColor => NDPColor.FromCCT(StrobeCCT);
+    public NDPColor StrobeColor => NDPColor.FromCCT.BlackBody(StrobeCCT);
 }

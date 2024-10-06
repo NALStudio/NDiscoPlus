@@ -91,6 +91,11 @@ public abstract class LightHandler : IAsyncDisposable
     /// </summary>
     public abstract ValueTask Stop();
 
+    /// <summary>
+    /// Flash the specified light with the provided color.
+    /// </summary>
+    public abstract ValueTask Signal(LightId lightId, NDPColor color);
+
     public ValueTask DisposeAsync()
     {
         ValueTask t = Stop();

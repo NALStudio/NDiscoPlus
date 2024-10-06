@@ -1,0 +1,7 @@
+﻿@using NDiscoPlus.Code.JavaScriptInterop
+@inject IJSRuntime JSRuntime
+
+@foreach (string css in ConstructCSS())
+{
+    <div style=@css />
+}

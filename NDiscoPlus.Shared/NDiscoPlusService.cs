@@ -19,18 +19,10 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace NDiscoPlus.Shared;
 
-public class NDiscoPlusService
+public class NDiscoPlusService : IDisposable
 {
-    [MemberNotNullWhen(true, nameof(http))]
-    public bool HttpFeaturesAvailable => http is not null;
-    readonly HttpClient? http;
-
+    private HttpClient? http = null;
     readonly Random random = new();
-
-    public NDiscoPlusService(HttpClient? http)
-    {
-        this.http = http;
-    }
 
     private NDPColorPalette ModifyPaletteForEffects(NDiscoPlusArgs args, NDPColorPalette palette)
     {
@@ -136,7 +128,7 @@ public class NDiscoPlusService
 
     public async Task<NDPColorPalette?> FetchImagePalette(SpotifyPlayerTrack track)
     {
-        ThrowIfNoHttp();
+        LazyLoadHttpClient();
 
         TrackImage largestImage = track.Images[0];
         int targetHalfSize = largestImage.Size / 2;
@@ -155,9 +147,13 @@ public class NDiscoPlusService
     }
 
     [MemberNotNull(nameof(http))]
-    private void ThrowIfNoHttp()
+    private void LazyLoadHttpClient()
     {
-        if (!HttpFeaturesAvailable)
-            throw new InvalidOperationException("HTTP features not available. No HttpClient provided.");
+        http ??= new();
+    }
+
+    public void Dispose()
+    {
+        http?.Dispose();
     }
 }
