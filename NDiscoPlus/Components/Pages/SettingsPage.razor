@@ -21,12 +21,15 @@
 @using System.Text
 @using System.Runtime.InteropServices
 @using NDiscoPlus.Shared.Models.Color
+@using System.Globalization
 
 @layout SpotifyLayout // So that we don't need to relogin every time we navigate back from the settings
 
 @inject NavigationManager navigationManager
 @inject ILogger<SettingsPage> logger;
 @inject IDialogService DialogService
+
+@implements IDisposable
 
 <!-- Page Title not needed in MAUI Blazor
 <PageTitle>NDiscoPlus Settings</PageTitle>
@@ -85,11 +88,26 @@
                             <MudIconButton Icon="@(Icons.Material.Rounded.Refresh)"
                                            Color="Color.Inherit"
                                            Disabled="@(Profiles?.CanReloadLights != true)"
-                                           OnClick="ReloadLightsWrapper" />
+                                           OnClick="LoadLights" />
                         </MudTooltip>
                     </MudStack>
                 </TitleContent>
                 <ChildContent>
+                    <div style="margin-bottom:32px;position:relative;left:0;right:0;top:0;">
+                        <div style="aspect-ratio:16/9;max-height:540px;margin:auto;">
+                            <LightPositionViewer @ref=lightPositionViewer />
+                            @if (lightPositionViewerSelected is DiscoveredLight selectedLight)
+                            {
+                                LightPosition pos = selectedLight.Light.Position;
+                                <MudStack Row="true" class="ma-3" style="position:absolute;bottom:0;">
+                                    <MudIcon Icon="@(selectedLight.Handler.Implementation.DisplayIcon)" />
+                                    <MudText><b>@(selectedLight.Light.DisplayName)</b></MudText>
+                                    <MudText>(@(pos.X.ToString(CultureInfo.InvariantCulture)), @(pos.Y.ToString(CultureInfo.InvariantCulture)), @(pos.Z.ToString(CultureInfo.InvariantCulture)))</MudText>
+                                </MudStack>
+                            }
+                        </div>
+                    </div>
+
                     @if (CurrentProfile is not null)
                     {
                         @foreach (DiscoveredLight light in CurrentProfileLights!)
@@ -123,6 +141,7 @@
         <MudExpansionPanels MultiExpansion="true">
             @foreach (LightHandler handler in CurrentProfile?.Handlers ?? Enumerable.Empty<LightHandler>())
             {
+                LightHandlerImplementation impl = handler.Implementation;
                 LightHandlerConfig config = handler.Config;
                 var parameters = LightHandlerConfigEditor<LightHandlerConfig>.CreateParametersDictionary(config);
                 Type editorType = config.GetEditorType();
@@ -130,11 +149,11 @@
                 <MudExpansionPanel>
                     <TitleContent>
                         <MudStack Row="true" AlignItems="AlignItems.Center" Class="pr-3">  <!-- Padding right 3 to add space between stack items and expansion panel icon -->
-                            <MudIcon Icon="@(handler.Implementation.DisplayIcon)" />
-                            <MudText><strong>@(handler.Implementation.DisplayName)</strong></MudText>
+                            <MudIcon Icon="@(impl.DisplayIcon)" />
+                            <MudText><strong>@(impl.DisplayName)</strong></MudText>
                             <MudSpacer />
                             <div>
-                                <MudTooltip Text="@("Remove " + handler.Implementation.DisplayName)">
+                                <MudTooltip Text="@("Remove " + impl.DisplayName)">
                                     <MudIconButton Icon="@(Icons.Material.Rounded.RemoveCircleOutline)"
                                                    Color="Color.Error"
                                                    OnClick="@(() => RemoveHandler(handler))" />
@@ -167,8 +186,6 @@
 
     private class ProfileData
     {
-        private readonly SettingsPage parent;
-
         public LightProfile CurrentProfile { get;  }
         public ImmutableArray<LightProfile> AllProfiles { get; }
 
@@ -186,10 +203,8 @@
         public bool CanReloadLights => !IsLoadingLights;
         private Task? loadLightsTask = null;
 
-        private ProfileData(SettingsPage parent, LightProfile current, ImmutableArray<LightProfile> all)
+        private ProfileData(LightProfile current, ImmutableArray<LightProfile> all)
         {
-            this.parent = parent;
-
             CurrentProfile = current;
             AllProfiles = all;
 
@@ -197,7 +212,7 @@
             CurrentProfileLights = new(lights);
         }
 
-        public static ProfileData Load(SettingsPage parent)
+        public static ProfileData Load()
         {
             LightProfile[] profiles = LightProfile.LoadAll();
             LightProfile currentProfile = profiles[0]; // first profile is default
@@ -207,21 +222,20 @@
 
             ImmutableArray<LightProfile> profilesImmutable = ImmutableCollectionsMarshal.AsImmutableArray(profiles);
 
-            ProfileData pd = new(parent, currentProfile, profilesImmutable);
-            pd.ReloadLights();
+            ProfileData pd = new(currentProfile, profilesImmutable);
             return pd;
         }
 
-        public void ReloadLights()
+        public async Task LoadLights(Func<DiscoveredLight, ValueTask> onLightDiscovered)
         {
             if (!CanReloadLights)
                 throw new InvalidOperationException("Light reload already active.");
 
-            loadLightsTask = LoadLights();
-            loadLightsTask.ContinueWith(_ => parent.StateHasChanged(), TaskContinuationOptions.ExecuteSynchronously);
+            loadLightsTask = InternalLoadLights(onLightDiscovered);
+            await loadLightsTask;
         }
 
-        private async Task LoadLights()
+        private async Task InternalLoadLights(Func<DiscoveredLight, ValueTask> onLightDiscovered)
         {
             lights.Clear();
 
@@ -235,7 +249,8 @@
                 {
                     DiscoveredLight light = new(handler, l);
                     Bisect.InsortRight(lights, light, x => x.Light.DisplayName ?? "zzzzz"); // sort null to the end of the list using many z's
-                    parent.StateHasChanged();
+
+                    await onLightDiscovered(light);
                 }
             }
         }
@@ -252,6 +267,8 @@
 
     private MudForm? form;
     private ScreenLightSignaler? screenLightSignaler;
+    private LightPositionViewer? lightPositionViewer;
+    private DiscoveredLight? lightPositionViewerSelected;
 
     private bool _formIsTouched = false;
     private bool __currentProfileEdited = false;
@@ -276,18 +293,55 @@
 
     protected override void OnInitialized()
     {
-        Profiles = ProfileData.Load(this);
+        Profiles = ProfileData.Load();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            lightPositionViewer!.OnLightSelected += OnViewerLightSelected;
+            await LoadLights();
+        }
+    }
+
+    private void OnViewerLightSelected(LightId? light)
+    {
+        ThrowIfProfileDataIsNull();
+
+        DiscoveredLight? selected = null;
+        foreach (DiscoveredLight dl in CurrentProfileLights)
+        {
+            if (dl.Light.Id == light)
+            {
+                selected = dl;
+                break;
+            }
+        }
+
+        lightPositionViewerSelected = selected;
+        StateHasChanged();
+    }
+
+    private async ValueTask OnNewLightDiscovered(DiscoveredLight light)
+    {
+        StateHasChanged();
+        await lightPositionViewer!.AddOrUpdateLightAsync(light.Light, light.Handler.Implementation.DisplayHTMLColor);
+    }
+
+    private async Task LoadLights()
+    {
+        ThrowIfProfileDataIsNull();
+
+        await lightPositionViewer!.WaitUntilInitializedAsync();
+
+        await lightPositionViewer!.ClearAsync();
+        await Profiles.LoadLights(OnNewLightDiscovered);
+        StateHasChanged();
     }
 
     private string GetProfileName(LightProfile profile)
         => string.IsNullOrWhiteSpace(profile.Name) ? "Unnamed Profile" : profile.Name;
-
-    private void ReloadLightsWrapper()
-    {
-        if (Profiles is null)
-            throw new InvalidOperationException("Profile data is null");
-        Profiles.ReloadLights();
-    }
 
     private async Task SignalLight(DiscoveredLight light)
     {
@@ -299,7 +353,12 @@
             red = cg.Red.ToColor();
         else
             red = NDPColor.FromLinearRGB(1d, 0d, 0d);
-        await light.Handler.Signal(light.Light.Id, red);
+
+        ValueTask handlerSignal = light.Handler.Signal(light.Light.Id, red);
+        Task viewerSignal = lightPositionViewer!.Signal(light.Light, ColorHelpers.ToHTMLColorRGB(red.ToSRGB()));
+
+        await handlerSignal; // Finish task when both signals finish
+        await viewerSignal; 
     }
 
     private async Task<bool> CanDiscardCurrentProfile()
@@ -353,10 +412,10 @@
         ThrowIfProfileDataIsNull();
 
         await Task.Delay(500);
-        SaveAndReloadProfileData();
+        await SaveAndReloadProfileData();
     }
 
-    private void SaveAndReloadProfileData(LightProfile? newCurrentProfile = null)
+    private async Task SaveAndReloadProfileData(LightProfile? newCurrentProfile = null)
     {
         ThrowIfProfileDataIsNull();
 
@@ -372,7 +431,8 @@
         form!.ResetTouched();
         _formIsTouched = false;
 
-        Profiles = ProfileData.Load(this);
+        Profiles = ProfileData.Load();
+        await LoadLights();
     }
 
     private async Task ChangeProfile(LightProfile newProfile)
@@ -385,7 +445,7 @@
         if (!(await CanDiscardCurrentProfile()))
             return;
 
-        SaveAndReloadProfileData(newCurrentProfile: newProfile);
+        await SaveAndReloadProfileData(newCurrentProfile: newProfile);
     }
 
     private async Task ChangeCurrentProfileName()
@@ -455,5 +515,14 @@
         }
 
         return sb.ToString();
+    }
+
+    public void Dispose()
+    {
+        if (lightPositionViewer is not null)
+        {
+            lightPositionViewer.OnLightSelected -= OnViewerLightSelected;
+            lightPositionViewer.Dispose();
+        }
     }
 }

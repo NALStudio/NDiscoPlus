@@ -9,7 +9,7 @@
         LightHandlerImplementation? impl = LightHandler?.Implementation;
 
         <MudTooltip Color="@(impl is not null ? Color.Default : Color.Error)" Text="@(impl?.DisplayName ?? "Unknown")" Placement="Placement.Right">
-            <MudIcon Color="@(impl is not null ? Color.Inherit : Color.Error)" Icon="@(impl?.DisplayIcon ?? Icons.Material.Rounded.Warning)" />
+            <MudIcon Style=@(impl is not null ? $"color:{impl.Value.DisplayHTMLColor};" : "") Color="@(impl is not null ? Color.Inherit : Color.Error)" Icon="@(impl?.DisplayIcon ?? Icons.Material.Rounded.Warning)" />
         </MudTooltip>
         <MudText Color="@(Light is null ? Color.Error : Color.Inherit)">@LightNameOrUnknown</MudText>
     }

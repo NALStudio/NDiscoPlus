@@ -50,10 +50,10 @@ internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
     {
         return new NDPLight[]
         {
-            new(new ScreenLightId(4, 0), "Top-Left", new LightPosition(-1, 1, 1), colorGamut: colorGamut),
-            new(new ScreenLightId(4, 1), "Top-Right", new LightPosition(1, 1, 1), colorGamut: colorGamut),
-            new(new ScreenLightId(4, 2), "Bottom-Left", new LightPosition(-1, -1, -1), colorGamut: colorGamut),
-            new(new ScreenLightId(4, 3), "Bottom-Right", new LightPosition(1, -1, -1), colorGamut: colorGamut)
+            new(new ScreenLightId(4, 0), "Top-Left", new LightPosition(-0.5d, 0.5d, 0.5d), colorGamut: colorGamut),
+            new(new ScreenLightId(4, 1), "Top-Right", new LightPosition(0.5d, 0.5d, 0.5d), colorGamut: colorGamut),
+            new(new ScreenLightId(4, 2), "Bottom-Left", new LightPosition(-0.5d, -0.5d, -0.5d), colorGamut: colorGamut),
+            new(new ScreenLightId(4, 3), "Bottom-Right", new LightPosition(0.5d, -0.5d, -0.5d), colorGamut: colorGamut)
         };
     }
 
@@ -61,12 +61,12 @@ internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
     {
         return new NDPLight[]
         {
-            new(new ScreenLightId(6, 0), "Top-Left", new LightPosition(-1, 1, 1), colorGamut: colorGamut),
-            new(new ScreenLightId(6, 1), "Top-Mid", new LightPosition(0, 1, 1), colorGamut: colorGamut),
-            new(new ScreenLightId(6, 2), "Top-Right", new LightPosition(1, 1, 1), colorGamut: colorGamut),
-            new(new ScreenLightId(6, 3), "Bottom-Left", new LightPosition(-1, -1, -1), colorGamut: colorGamut),
-            new(new ScreenLightId(6, 4), "Bottom-Mid", new LightPosition(0, -1, -1), colorGamut: colorGamut),
-            new(new ScreenLightId(6, 5), "Bottom-Right", new LightPosition(1, -1, -1), colorGamut: colorGamut)
+            new(new ScreenLightId(6, 0), "Top-Left", new LightPosition(-0.5d, 0.5d, 0.5d), colorGamut: colorGamut),
+            new(new ScreenLightId(6, 1), "Top-Mid", new LightPosition(0, 0.5d, 0.5d), colorGamut: colorGamut),
+            new(new ScreenLightId(6, 2), "Top-Right", new LightPosition(0.5d, 0.5d, 0.5d), colorGamut: colorGamut),
+            new(new ScreenLightId(6, 3), "Bottom-Left", new LightPosition(-0.5d, -0.5d, -0.5d), colorGamut: colorGamut),
+            new(new ScreenLightId(6, 4), "Bottom-Mid", new LightPosition(0, -0.5d, -0.5d), colorGamut: colorGamut),
+            new(new ScreenLightId(6, 5), "Bottom-Right", new LightPosition(0.5d, -0.5d, -0.5d), colorGamut: colorGamut)
         };
     }
 

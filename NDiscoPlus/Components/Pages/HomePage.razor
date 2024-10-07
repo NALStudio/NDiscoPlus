@@ -4,6 +4,7 @@
 @using Microsoft.Extensions.Logging
 @using MudBlazor.Utilities
 @using NDiscoPlus.Code
+@using NDiscoPlus.Code.FocusModeProvider
 @using NDiscoPlus.Code.JavaScriptInterop
 @using NDiscoPlus.Code.LightHandlers
 @using NDiscoPlus.Code.LightHandlers.Screen
@@ -38,6 +39,7 @@
 @inject IJSRuntime JSRuntime
 @inject ISnackbar Snackbar
 @inject SpotifyService Spotify
+@inject IFocusModeProvider focusMode
 
 @implements IAsyncDisposable
 
@@ -114,7 +116,7 @@
                             />
         </MudTooltip>
         <MudTooltip Text="Toggle Fullscreen" Placement="Placement.Right" Delay="1000">
-            <MudIconButton Icon="@Icons.Material.Rounded.Fullscreen"
+            <MudIconButton Icon="@(!focusMode.IsFocusModeEnabled ? Icons.Material.Rounded.Fullscreen : Icons.Material.Rounded.FullscreenExit)"
                             Size="Size.Large"
                             OnClick="ToggleFullscreen" />
         </MudTooltip>
@@ -373,19 +375,11 @@
 
     void ToggleFullscreen()
     {
-        // https://blog.verslu.is/maui/full-screen-disable-minimize-maximize-for-net-maui-windows-apps/
-
-        Snackbar.Add("NOT IMPLEMENTED YET");
-        // if (await Fullscreen.IsFullscreen)
-        // {
-        //     await Fullscreen.ExitFullscreen();
-        //     await ReleaseWakeLock();
-        // }
-        // else
-        // {
-        //     await Fullscreen.RequestFullscreen();
-        //     await RequestWakeLock();
-        // }
+        if (focusMode.IsFocusModeEnabled)
+            focusMode.DisableFocusMode();
+        else
+            focusMode.EnableFocusMode();
+        SetWakeLock(focusMode.IsFocusModeEnabled);
     }
 
     void SetWakeLock(bool enabled)

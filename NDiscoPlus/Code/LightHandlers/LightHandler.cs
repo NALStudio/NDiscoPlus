@@ -14,7 +14,8 @@ namespace NDiscoPlus.Code.LightHandlers;
 public readonly record struct LightHandlerImplementation(
     Type Type,
     string DisplayName,
-    string DisplayIcon
+    string DisplayIcon,
+    string DisplayHTMLColor
 )
 {
     /// <summary>
@@ -39,7 +40,8 @@ public abstract class LightHandler : IAsyncDisposable
         new(
             typeof(ScreenLightHandler),
             "Screen",
-            Icons.Material.Rounded.DesktopWindows
+            Icons.Material.Rounded.DesktopWindows,
+            MudBlazor.Colors.Cyan.Default
         )
         {
             MaxCount = 1
@@ -47,7 +49,8 @@ public abstract class LightHandler : IAsyncDisposable
         new(
             typeof(HueLightHandler),
             "Philips Hue",
-            Icons.Material.Rounded.Lightbulb
+            Icons.Material.Rounded.Lightbulb,
+            MudBlazor.Colors.Pink.Default
         )
     ];
     // Use FrozenDictionary as this is only instantiated once.

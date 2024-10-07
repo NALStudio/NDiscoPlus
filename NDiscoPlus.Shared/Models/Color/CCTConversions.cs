@@ -16,8 +16,8 @@ public readonly partial struct NDPColor
         {
             // https://en.wikipedia.org/wiki/Standard_illuminant#Computation
 
-            double T2 = Math.Pow(T, 2);
-            double T3 = Math.Pow(T, 3);
+            double T2 = T * T;
+            double T3 = T * T * T;
 
             const double _10pow3 = 1_000;
             const double _10pow6 = 1_000_000;
@@ -29,7 +29,10 @@ public readonly partial struct NDPColor
                 > 7000 and <= 25000 => 0.237040d + (0.24748d * (_10pow3 / T)) + (1.9018d * (_10pow6 / T2)) - (2.0064d * (_10pow9 / T3)),
                 _ => throw new ArgumentOutOfRangeException(nameof(T), "CIE Illuminant D Series is defined between 4000 and 25 000 kelvin.")
             };
-            double y = (-3.000 * Math.Pow(x, 2)) + (2.870 * x) - 0.275;
+
+            double x2 = x * x;
+
+            double y = (-3.000 * x2) + (2.870 * x) - 0.275;
 
             return new NDPColor(x, y, brightness);
         }
@@ -46,8 +49,8 @@ public readonly partial struct NDPColor
 
             // https://en.wikipedia.org/wiki/Planckian_locus#Approximation
 
-            double T2 = Math.Pow(T, 2);
-            double T3 = Math.Pow(T, 3);
+            double T2 = T * T;
+            double T3 = T * T * T;
 
             const double _10pow3 = 1_000;
             const double _10pow6 = 1_000_000;
@@ -60,8 +63,8 @@ public readonly partial struct NDPColor
                 _ => throw new ArgumentOutOfRangeException(nameof(T), _kOutOfRangeMsg)
             };
 
-            double x2 = Math.Pow(x, 2);
-            double x3 = Math.Pow(x, 3);
+            double x2 = x * x;
+            double x3 = x * x * x;
 
             double y = T switch
             {

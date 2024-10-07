@@ -5,7 +5,7 @@ using Zeroconf;
 namespace NDiscoPlus.PhilipsHue.BridgeDiscovery;
 
 
-public static class HueBridgeDiscovery
+public static partial class HueBridgeDiscovery
 {
     /// <summary>
     /// Search bridges using Multicast.

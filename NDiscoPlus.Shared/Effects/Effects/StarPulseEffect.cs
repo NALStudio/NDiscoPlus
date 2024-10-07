@@ -15,7 +15,7 @@ namespace NDiscoPlus.Shared.Effects.Effects;
 
 internal class StarPulseEffect : NDPEffect
 {
-    private static readonly NDPColor _kPulseColor = NDPColor.FromCCT.BlackBody(2000);
+    private static readonly NDPColor _kPulseColor = NDPColor.FromCCT.BlackBody(2500);
     private const Channel _kChannel = Channel.Default;
 
     public StarPulseEffect(EffectIntensity intensity) : base(intensity)

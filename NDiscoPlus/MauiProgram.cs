@@ -2,7 +2,7 @@
 using MudBlazor;
 using MudBlazor.Services;
 using NDiscoPlus.Code;
-using NDiscoPlus.Code.JavaScriptInterop;
+using NDiscoPlus.Code.FocusModeProvider;
 
 namespace NDiscoPlus;
 public static class MauiProgram
@@ -34,6 +34,15 @@ public static class MauiProgram
         });
 
         builder.Services.AddSingleton<SpotifyService>();
+
+        builder.Services.AddScoped<IFocusModeProvider>(static _ =>
+        {
+#if WINDOWS
+            return new WindowsFocusModeProvider(Application.Current!.Windows[0]);
+#else
+            throw new NotImplementedException();
+#endif
+        });
 
         return builder.Build();
     }

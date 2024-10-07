@@ -11,4 +11,16 @@ internal static class NDPConstants
     public static readonly ImmutableArray<string> SpotifyScope = [Scopes.UserReadPlaybackState];
 
     public const string SpotifyRedirectUri = "ndiscoplus://spotify-login/";
+
+    public const string HueAppName = "ndiscoplus";
+    public const string HueInstanceName =
+#if WINDOWS
+        "app_windows";
+#elif ANDROID
+        "app_android";
+#elif IOS
+        "app_ios";
+#elif MACCATALYST
+        "app_maccatalyst";
+#endif
 }
