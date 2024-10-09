@@ -41,8 +41,10 @@ internal class FlashEffect : NDPEffect
             } while (color == previouslyShown);
 
             NDPLight[] group = (i % 2 == 0) ? Group1 : Group2;
-
+            aslkdjflkasdjlkfj lkajsd NOT FINISHED
         }
+
+        // TODO: Use the new background disable API instead of ClearChannelsForStrobes
     }
 
     private (NDPLight[], NDPLight[]) GroupLights(EffectChannel channel)

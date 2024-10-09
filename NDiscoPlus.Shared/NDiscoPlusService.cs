@@ -8,6 +8,7 @@ using NDiscoPlus.Shared.Effects.BaseEffects;
 using NDiscoPlus.Shared.Effects.Strobes;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
+using NDiscoPlus.Shared.Models.ChunkedEffectsCollection;
 using NDiscoPlus.Shared.Models.Color;
 using NDiscoPlus.Shared.Music;
 using NDiscoPlus.Spotify.Models;

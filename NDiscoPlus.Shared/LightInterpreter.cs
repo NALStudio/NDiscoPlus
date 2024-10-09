@@ -150,9 +150,15 @@ public class LightInterpreter
 
     public LightInterpreterResult Update(TimeSpan progress, NDPData data)
     {
+        // TODO: Reuse lights dictionary and use chunk to update shit
+        ChunkedEffectsCollection.ChunkView chunk = data.Effects.GetChunk(progress);
+
         Dictionary<LightId, NDPColor> lights = UpdateBackground(progress, data).ToDictionary(key => key.Light, value => value.Color);
 
         UpdateEffects(ref lights, data, progress);
+
+        // TODO: Create dictionary once with all the lights and just operate on them directly
+        // and of course clamp at the end etc.
         HandleLimitationsAndAddMissingLights(ref lights, data.Lights);
 
         double deltaTime = TickDeltaTime();

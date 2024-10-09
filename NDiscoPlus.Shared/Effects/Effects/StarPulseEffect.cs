@@ -74,6 +74,7 @@ internal class StarPulseEffect : NDPEffect
 
     private static void ClearChannelsForPulses(EffectContext ctx, EffectAPI api)
     {
+        // TODO: Consider the new background disable API
         NDPInterval clearInterval = ctx.Section.Interval;
 
         // Use pulse color so that the color is consistent when interpolating brightness

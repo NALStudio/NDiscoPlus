@@ -15,12 +15,15 @@ public class BackgroundChannel : BaseChannel
     {
     }
 
-    protected readonly Dictionary<LightId, List<BackgroundTransition>> transitions = new();
-    protected readonly List<NDPInterval> black = new();
+    protected readonly List<BackgroundTransition> transitions = new();
+    protected readonly List<NDPInterval> disabled = new();
+
+    public IList<BackgroundTransition> Transitions => transitions.AsReadOnly();
+    public IList<NDPInterval> DisabledIntervals => disabled.AsReadOnly();
 
     public void DisableFor(NDPInterval interval)
     {
-        black.Add(interval);
+        disabled.Add(interval);
     }
 
     /// <summary>
