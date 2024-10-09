@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.PhilipsHue.Api.Models.RequestBuilders;
-internal class HueLightRequestBuilder : HueRequestBuilder
+public class HueLightRequestBuilder : HueRequestBuilder
 {
     // TODO: Implement archetype, function
     public HueLightRequestBuilder WithMetadata(string? name = null)

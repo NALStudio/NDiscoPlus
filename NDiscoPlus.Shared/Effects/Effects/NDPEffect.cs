@@ -9,18 +9,21 @@ namespace NDiscoPlus.Shared.Effects.Effects;
 internal abstract class NDPEffect
 {
     public static readonly ImmutableArray<NDPEffect> All = [
+        // Bright light effect
         BrightLightEffect.Default(EffectIntensity.High),
         BrightLightEffect.Slow(EffectIntensity.VeryLow),
         BrightLightEffect.White(EffectIntensity.VeryHigh),
 
-        new ColorSwitchEffect(EffectIntensity.Medium),
-
+        // Strobe effect
         new GroupedStrobeLightEffect(GroupedStrobeLightEffect.GroupingType.Horizontal, EffectIntensity.Maximum),
         new GroupedStrobeLightEffect(GroupedStrobeLightEffect.GroupingType.Vertical, EffectIntensity.Maximum),
         new GroupedStrobeLightEffect(GroupedStrobeLightEffect.GroupingType.RandomPattern, EffectIntensity.Maximum),
         new RandomStrobeLightEffect(EffectIntensity.Maximum),
 
-        new StarPulseEffect(EffectIntensity.Low)
+        // Miscellaneous
+        new ColorSwitchEffect(EffectIntensity.Medium),
+        new FlashEffect(EffectIntensity.Medium),
+        new StarPulseEffect(EffectIntensity.Low),
     ];
 
     public static readonly IDictionary<EffectIntensity, IList<NDPEffect>> ByIntensity = Enum.GetValues<EffectIntensity>()
@@ -37,5 +40,5 @@ internal abstract class NDPEffect
         Intensity = intensity;
     }
 
-    public EffectIntensity Intensity { get; }
+    public EffectIntensity Intensity { get; init; }
 }

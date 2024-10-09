@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -10,17 +11,17 @@ namespace NDiscoPlus.PhilipsHue.Api.Models.Responses.Generic;
 /// <summary>
 /// Supports serialize and deserialize.
 /// </summary>
-public class HueResourceIdentifier
+public sealed class HueResourceIdentifier
 {
-    internal HueResourceIdentifier(string resourceId, string resourceType)
+    internal HueResourceIdentifier(Guid resourceId, string resourceType)
     {
         ResourceId = resourceId;
-        ResourceType = resourceType;
+        ResourceType = new HueResourceType(resourceType);
     }
 
     [JsonPropertyName("rid")]
-    public string ResourceId { get; }
+    public Guid ResourceId { get; }
 
     [JsonPropertyName("rtype")]
-    public string ResourceType { get; }
+    public HueResourceType ResourceType { get; }
 }

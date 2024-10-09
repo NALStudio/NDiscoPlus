@@ -18,8 +18,10 @@ public class EffectConfig
     public double BaseBrightness { get; init; } = 0.1d;
     public double MaxBrightness { get; init; } = 1d;
 
-    // Strobe lights mimic the color of daylight at around 6500 kelvin: https://en.wikipedia.org/wiki/Strobe_light
-    // As such we can use D65 as our strobe color (2° observer): https://en.wikipedia.org/wiki/Standard_illuminant#D65_values
-    public NDPColor StrobeColor { get; init; } = new(0.31272d, 0.32903d, 1d);
+    // Strobe light color is around 5600 kelvin:
+    // - https://en.wikipedia.org/wiki/Strobe_light
+    // - https://fixthephoto.com/best-strobe-lights-for-photography.html#:~:text=The%20best%20strobe%20lights%20for%20photography%20have%20a,modern%20DSLRs%20allow%20adjusting%20the%20expected%20color%20temperature.
+    //    - ^ Check the linked products, they're pretty much all 5600
+    public NDPColor StrobeColor { get; init; } = NDPColor.FromCCT.BlackBody(5600);
     public StrobeStyles StrobeStyle { get; init; } = StrobeStyles.Instant;
 }

@@ -7,13 +7,13 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.PhilipsHue.Api.Models.Responses.Entertainment;
-public class EntertainmentChannelLocations
+public class HueEntertainmentChannelLocations
 {
-    internal EntertainmentChannelLocations(ImmutableArray<ServiceLocationGet> serviceLocations)
+    internal HueEntertainmentChannelLocations(ImmutableArray<HueServiceLocation> serviceLocations)
     {
         ServiceLocations = serviceLocations;
     }
 
     [JsonPropertyName("service_locations")]
-    public ImmutableArray<ServiceLocationGet> ServiceLocations { get; }
+    public ImmutableArray<HueServiceLocation> ServiceLocations { get; }
 }

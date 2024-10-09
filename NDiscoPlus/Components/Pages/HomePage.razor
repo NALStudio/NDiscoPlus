@@ -435,16 +435,23 @@
         LightProfile profile = LightProfile.LoadCurrent();
         ScreenLightHandler screenLightHandlerSingleton = (ScreenLightHandler)profile.Handlers.Single(lh => lh is ScreenLightHandler);
 
+        Stopwatch startupTimer = Stopwatch.StartNew();
+
         bool startSuccessful = true;
         ErrorMessageCollector errors = new();
         List<NDPLight> lights = new();
         foreach (LightHandler handler in profile.Handlers)
         {
-            if (await handler.Start(errors, out NDPLight[] startedLights))
+            NDPLight[]? startedLights = await handler.Start(errors);
+            if (startedLights is not null)
                 lights.AddRange(startedLights);
             else
                 startSuccessful = false;
         }
+
+        startupTimer.Stop();
+        if (startupTimer.Elapsed > TimeSpan.FromSeconds(5))
+            logger.LogWarning("Light handler startup took over 5 seconds. Please note that at around 10 seconds, the Philips Hue entertainment connection gets terminated.");
 
         if (!startSuccessful)
         {

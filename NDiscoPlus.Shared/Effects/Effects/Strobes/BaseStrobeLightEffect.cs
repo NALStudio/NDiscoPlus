@@ -98,23 +98,23 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
 
     private static (int GroupCount, ImmutableArray<NDPInterval> SyncIntervals) GenerateSyncIntervals(EffectContext ctx)
     {
-        int effectsPerSync = _SyncIntervalEffectsPerSync(ctx.Section.Tempo.TimeSignature, ctx.Section.Timings.Tatums);
+        int effectsPerSync = SyncIntervalEffectsPerSync(ctx.Section.Tempo.TimeSignature, ctx.Section.Timings.Tatums);
         IList<NDPInterval> syncIntervals = ctx.Section.Timings.Tatums;
 
         if (effectsPerSync == 0)
         {
-            effectsPerSync = _SyncIntervalEffectsPerSync(ctx.Section.Tempo.TimeSignature, ctx.Section.Timings.Beats);
+            effectsPerSync = SyncIntervalEffectsPerSync(ctx.Section.Tempo.TimeSignature, ctx.Section.Timings.Beats);
             syncIntervals = ctx.Section.Timings.Beats;
         }
         if (effectsPerSync == 0)
         {
-            effectsPerSync = _SyncIntervalEffectsPerSync(ctx.Section.Tempo.TimeSignature, ctx.Section.Timings.Bars);
+            effectsPerSync = SyncIntervalEffectsPerSync(ctx.Section.Tempo.TimeSignature, ctx.Section.Timings.Bars);
             syncIntervals = ctx.Section.Timings.Bars;
         }
         if (effectsPerSync == 0)
             throw new InvalidOperationException($"Sync not possible. Time signature: {ctx.Section.Tempo.TimeSignature}/4");
 
-        int groupCount = _SyncIntervalGroupCount(ctx.Section.Tempo.TimeSignature, effectsPerSync);
+        int groupCount = SyncIntervalGroupCount(ctx.Section.Tempo.TimeSignature, effectsPerSync);
 
         int totalEffectsCount = syncIntervals.Count * effectsPerSync;
         NDPInterval[] effects = new NDPInterval[totalEffectsCount];
@@ -132,14 +132,10 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
         return (groupCount, ImmutableCollectionsMarshal.AsImmutableArray(effects));
     }
 
-    private static int _SyncIntervalEffectsPerSync(int timeSignature, IList<NDPInterval> syncIntervals)
+    private static int SyncIntervalEffectsPerSync(int timeSignature, IList<NDPInterval> syncIntervals)
     {
-        // Bridge sends at 25 Hz, so fastest effect rate must be less than 12.5 Hz (per API docs), so effect duration must be less than (1 / 12.5 Hz => 0,08 s)
-        // relevant documentation: https://developers.meethue.com/develop/hue-entertainment/hue-entertainment-api/#best-practices
-        TimeSpan minEffectDuration = TimeSpan.FromSeconds(1 / 12.5);
-
         int effectsPerSync = timeSignature;
-        while (syncIntervals.Any(interval => (interval.Duration / effectsPerSync) < minEffectDuration))
+        while (syncIntervals.Any(interval => (interval.Duration / effectsPerSync) < EffectConstants.MinEffectDuration))
         {
             // DivideBy2RoundUpwards(1) => 1 => infinite loop
             // as we cannot converge into any value after that, we return 0
@@ -152,7 +148,7 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
         return effectsPerSync;
     }
 
-    private static int _SyncIntervalGroupCount(int timeSignature, int effectsPerSync)
+    private static int SyncIntervalGroupCount(int timeSignature, int effectsPerSync)
     {
         // Choose a group count where it syncs up with effects nicely.
         // This is possible using the song's timeSignature when effectsPerSync is 1 OR effectsPerSync and timeSignature are both divisible by 2
@@ -188,6 +184,8 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
         NDPColor strobeResetColor = api.Config.StrobeColor.CopyWith(brightness: 0d);
         foreach (EffectChannel channel in api.Channels)
         {
+            // We want to clear absolutely everything for strobes
+            // Although we don't need to disable the background animation anymore as this method definitely handles that already :D
             channel.Clear(clearStart, clearEnd);
             foreach (NDPLight light in channel.Lights)
                 channel.Add(new Effect(light.Id, clearStart, clearLength, strobeResetColor));

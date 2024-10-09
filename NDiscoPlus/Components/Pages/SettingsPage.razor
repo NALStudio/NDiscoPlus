@@ -79,7 +79,7 @@
                         @if (Profiles is not null)
                         {
                             <MudTooltip Text="@(GetLightsTooltip(Profiles.CurrentProfileLights))" Delay="1000">
-                                <MudBadge Color="@(Profiles.IsLoadingLights ? Color.Error : Color.Info)" Dot="@(Profiles.IsLoadingLights)" Content="@(Profiles.CurrentProfileLights.Count)">
+                                <MudBadge Color="@(Profiles.UiLightsHaveBeenLoaded ? Color.Info : Color.Error)" Dot="@(!Profiles.UiLightsHaveBeenLoaded)" Content="@(Profiles.CurrentProfileLights.Count)">
                                     <MudIcon Icon="@(Icons.Material.Rounded.Lightbulb)" Color="Color.Warning" />
                                 </MudBadge>
                             </MudTooltip>
@@ -87,7 +87,7 @@
                         <MudTooltip Text="Refresh Lights" Delay="1000">
                             <MudIconButton Icon="@(Icons.Material.Rounded.Refresh)"
                                            Color="Color.Inherit"
-                                           Disabled="@(Profiles?.CanReloadLights != true)"
+                                           Disabled="@(Profiles?.UiLightsHaveBeenLoaded != true)"
                                            OnClick="LoadLights" />
                         </MudTooltip>
                     </MudStack>
@@ -98,11 +98,13 @@
                             <LightPositionViewer @ref=lightPositionViewer />
                             @if (lightPositionViewerSelected is DiscoveredLight selectedLight)
                             {
+                                static string FormatPos(double a) => a.ToString("0.00", CultureInfo.InvariantCulture);
+
                                 LightPosition pos = selectedLight.Light.Position;
                                 <MudStack Row="true" class="ma-3" style="position:absolute;bottom:0;">
                                     <MudIcon Icon="@(selectedLight.Handler.Implementation.DisplayIcon)" />
                                     <MudText><b>@(selectedLight.Light.DisplayName)</b></MudText>
-                                    <MudText>(@(pos.X.ToString(CultureInfo.InvariantCulture)), @(pos.Y.ToString(CultureInfo.InvariantCulture)), @(pos.Z.ToString(CultureInfo.InvariantCulture)))</MudText>
+                                    <MudText>(@(FormatPos(pos.X)), @(FormatPos(pos.Y)), @(FormatPos(pos.Z)))</MudText>
                                 </MudStack>
                             }
                         </div>
@@ -199,8 +201,11 @@
         public ReadOnlyObservableCollection<DiscoveredLight> CurrentProfileLights { get; }
         private readonly ObservableCollection<DiscoveredLight> lights;
 
-        public bool IsLoadingLights => loadLightsTask is not null && !loadLightsTask.IsCompleted;
-        public bool CanReloadLights => !IsLoadingLights;
+        // Special variable for UI so that they don't flicker before the load lights task has started
+        public bool UiLightsHaveBeenLoaded => loadLightsTask?.IsCompleted == true;
+
+        private bool IsLoadingLights => loadLightsTask is not null && !loadLightsTask.IsCompleted;
+        private bool CanReloadLights => !IsLoadingLights;
         private Task? loadLightsTask = null;
 
         private ProfileData(LightProfile current, ImmutableArray<LightProfile> all)
@@ -354,10 +359,13 @@
         else
             red = NDPColor.FromLinearRGB(1d, 0d, 0d);
 
-        ValueTask handlerSignal = light.Handler.Signal(light.Light.Id, red);
-        Task viewerSignal = lightPositionViewer!.Signal(light.Light, ColorHelpers.ToHTMLColorRGB(red.ToSRGB()));
+        TimeSpan? handlerSignalDuration = await light.Handler.Signal(light.Light.Id, red);
+        Task viewerSignal = lightPositionViewer!.Signal(
+            light: light.Light, 
+            duration: handlerSignalDuration ?? TimeSpan.FromSeconds(2),
+            color: ColorHelpers.ToHTMLColorRGB(red.ToSRGB())
+        );
 
-        await handlerSignal; // Finish task when both signals finish
         await viewerSignal; 
     }
 

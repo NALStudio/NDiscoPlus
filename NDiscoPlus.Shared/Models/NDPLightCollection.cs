@@ -33,25 +33,72 @@ public sealed class NDPLightCollection : IReadOnlyDictionary<LightId, NDPLight>,
     /// <summary>
     /// Group lights from left to right.
     /// </summary>
-    public List<NDPLight[]> GroupX(int count)
-    {
-        return lights.Values.ChunkByPositionByGroupNumber(count, l => l.Position.X).ToList();
-    }
+    public List<NDPLight[]> GroupX(int count) => lights.Values.ChunkByPositionByGroupNumber(count, static l => l.Position.X).ToList();
 
     /// <summary>
     /// Group lights from back to front.
     /// </summary>
-    public List<NDPLight[]> GroupY(int count)
-    {
-        return lights.Values.ChunkByPositionByGroupNumber(count, l => l.Position.Y).ToList();
-    }
+    public List<NDPLight[]> GroupY(int count) => lights.Values.ChunkByPositionByGroupNumber(count, static l => l.Position.Y).ToList();
 
     /// <summary>
     /// Group lights from bottom to top.
     /// </summary>
-    public List<NDPLight[]> GroupZ(int count)
+    public List<NDPLight[]> GroupZ(int count) => lights.Values.ChunkByPositionByGroupNumber(count, static l => l.Position.Z).ToList();
+
+
+    /// <inheritdoc cref="Split"/>
+    /// <remarks>
+    /// Lights are ordered from left to right.
+    /// </remarks>
+    public List<NDPLight[]> SplitX(double tolerance) => Split(tolerance, static l => l.Position.X).ToList();
+
+    /// <inheritdoc cref="Split"/>
+    /// <remarks>
+    /// Lights are ordered from back to front
+    /// </remarks>
+    public List<NDPLight[]> SplitY(double tolerance) => Split(tolerance, static l => l.Position.Y).ToList();
+
+    /// <inheritdoc cref="Split"/>
+    /// <remarks>
+    /// Lights are ordered from bottom to top.
+    /// </remarks>
+    public List<NDPLight[]> SplitZ(double tolerance) => Split(tolerance, static l => l.Position.Z).ToList();
+
+    /// <summary>
+    /// Split lights into groups where their distance is more than <paramref name="tolerance"/>.
+    /// </summary>
+    private IEnumerable<NDPLight[]> Split(double tolerance, Func<NDPLight, double> positionSelector)
     {
-        return lights.Values.ChunkByPositionByGroupNumber(count, l => l.Position.Z).ToList();
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(tolerance);
+
+        (NDPLight Light, double Position)[] positions = lights.Values.Select(l => (l, positionSelector(l))).ToArray();
+        Array.Sort(positions, static (a, b) => a.Position.CompareTo(b.Position)); // sort from smallest to largest (-1 to 1 since positions are clamped to this range)
+
+        List<NDPLight> output = new();
+        double? lastPos = null;
+        foreach ((NDPLight light, double pos) in positions)
+        {
+            if (lastPos is null)
+            {
+                output.Add(light);
+            }
+            else
+            {
+                Debug.Assert(lastPos <= pos);
+                if ((pos - lastPos) <= tolerance)
+                {
+                    output.Add(light);
+                }
+                else
+                {
+                    yield return output.ToArray();
+                    output.Clear();
+                }
+            }
+        }
+
+        if (output.Count > 0)
+            yield return output.ToArray();
     }
 
 

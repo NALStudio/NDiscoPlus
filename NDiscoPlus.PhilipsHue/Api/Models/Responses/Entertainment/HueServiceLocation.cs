@@ -8,9 +8,9 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.PhilipsHue.Api.Models.Responses.Entertainment;
-public class ServiceLocationGet
+public class HueServiceLocation
 {
-    internal ServiceLocationGet(HueResourceIdentifier service, ImmutableArray<HuePosition> positions, double equalizationFactor)
+    internal HueServiceLocation(HueResourceIdentifier service, ImmutableArray<HuePosition> positions, double equalizationFactor)
     {
         Service = service;
         Positions = positions;

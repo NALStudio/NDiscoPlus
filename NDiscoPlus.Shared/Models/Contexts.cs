@@ -1,26 +1,47 @@
 ﻿using NDiscoPlus.Shared.Analyzer.Analysis;
 using NDiscoPlus.Shared.Music;
-using SpotifyAPI.Web;
-using System.Collections.Immutable;
 
 namespace NDiscoPlus.Shared.Models;
 
-internal class Context
+internal class BaseContext
 {
     public Random Random { get; }
     public NDPColorPalette Palette { get; }
 
-    public AudioAnalysis Analysis { get; }
-
-    public Context(Random random, NDPColorPalette palette, AudioAnalysis analysis)
+    protected BaseContext(Random random, NDPColorPalette palette)
     {
         Random = random;
         Palette = palette;
+    }
+}
+
+internal abstract class WholeTrackContext : BaseContext
+{
+    public AudioAnalysis Analysis { get; }
+
+    protected WholeTrackContext(Random random, NDPColorPalette palette, AudioAnalysis analysis) : base(random, palette)
+    {
         Analysis = analysis;
     }
 }
 
-internal sealed class StrobeContext : Context
+internal sealed class BackgroundContext : WholeTrackContext
+{
+    public BackgroundContext(Random random, NDPColorPalette palette, AudioAnalysis analysis) : base(random, palette, analysis)
+    {
+    }
+
+    public static BackgroundContext Extend(BaseContext context, AudioAnalysis analysis)
+    {
+        return new BackgroundContext(
+            random: context.Random,
+            palette: context.Palette,
+            analysis: analysis
+        );
+    }
+}
+
+internal sealed class StrobeContext : WholeTrackContext
 {
     public GeneratedEffects Effects { get; }
 
@@ -29,12 +50,12 @@ internal sealed class StrobeContext : Context
         Effects = effects;
     }
 
-    public static StrobeContext Extend(Context context, GeneratedEffects effects)
+    public static StrobeContext Extend(BaseContext context, AudioAnalysis analysis, GeneratedEffects effects)
     {
         return new StrobeContext(
             random: context.Random,
             palette: context.Palette,
-            analysis: context.Analysis,
+            analysis: analysis,
             effects: effects
         );
     }
@@ -48,21 +69,20 @@ internal sealed class StrobeContext : Context
     }
 }
 
-internal sealed class EffectContext : Context
+internal sealed class EffectContext : BaseContext
 {
     public AudioAnalysisSection Section { get; }
 
-    private EffectContext(Random random, NDPColorPalette palette, AudioAnalysis analysis, AudioAnalysisSection section) : base(random, palette, analysis)
+    private EffectContext(Random random, NDPColorPalette palette, AudioAnalysisSection section) : base(random, palette)
     {
         Section = section;
     }
 
-    public static EffectContext Extend(Context context, AudioAnalysisSection section)
+    public static EffectContext Extend(BaseContext context, AudioAnalysisSection section)
     {
         return new EffectContext(
             random: context.Random,
             palette: context.Palette,
-            analysis: context.Analysis,
             section: section
         );
     }

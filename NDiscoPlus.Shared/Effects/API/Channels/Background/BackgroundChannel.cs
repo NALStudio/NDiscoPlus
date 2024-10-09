@@ -1,27 +1,26 @@
 ﻿using NDiscoPlus.Shared.Effects.API.Channels.Background.Intrinsics;
+using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using System.Collections.Immutable;
 
 namespace NDiscoPlus.Shared.Effects.API.Channels.Background;
 
+/// <summary>
+/// This class is used by effects to gather information on what the background is currently doing.
+/// </summary>
 public class BackgroundChannel : BaseChannel
 {
     public BackgroundChannel(NDPLightCollection lights) : base(lights)
     {
     }
 
-    private readonly Dictionary<LightId, List<BackgroundTransition>> transitions = new();
+    protected readonly Dictionary<LightId, List<BackgroundTransition>> transitions = new();
+    protected readonly List<NDPInterval> black = new();
 
-    public void Add(BackgroundTransition transition)
+    public void DisableFor(NDPInterval interval)
     {
-        if (!transitions.TryGetValue(transition.LightId, out List<BackgroundTransition>? trans))
-        {
-            trans = new();
-            transitions.Add(transition.LightId, trans);
-        }
-
-        Bisect.InsortRight(trans, transition, t => t.Start);
+        black.Add(interval);
     }
 
     /// <summary>
@@ -44,7 +43,28 @@ public class BackgroundChannel : BaseChannel
         else
             return null;
     }
+}
 
-    internal ImmutableDictionary<LightId, ImmutableArray<BackgroundTransition>> Freeze()
-        => transitions.ToImmutableDictionary(key => key.Key, value => value.Value.ToImmutableArray());
+/// <summary>
+/// This class is used by background effect generators to generate background effects.
+/// </summary>
+public class BackgroundChannelAPI : BackgroundChannel
+{
+    public EffectConfig Config { get; }
+
+    public BackgroundChannelAPI(NDPLightCollection lights, EffectConfig config) : base(lights)
+    {
+        Config = config;
+    }
+
+    public void Add(BackgroundTransition transition)
+    {
+        if (!transitions.TryGetValue(transition.LightId, out List<BackgroundTransition>? trans))
+        {
+            trans = new();
+            transitions.Add(transition.LightId, trans);
+        }
+
+        Bisect.InsortRight(trans, transition, t => t.Start);
+    }
 }

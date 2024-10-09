@@ -2,16 +2,12 @@
 
 public class HueLightId : LightId
 {
-    public Guid EntertainmentConfigurationId { get; }
-    public byte ChannelId { get; }
+    public required Guid EntertainmentConfigurationId { get; init; }
+    public required byte ChannelId { get; init; }
+
+    public required Guid LightId { get; init; } // For signaling
 
     public override string HumanReadableString => $"Hue Light (config: {EntertainmentConfigurationId}, id: {ChannelId})";
-
-    public HueLightId(Guid entertainmentConfigurationId, byte channelId)
-    {
-        EntertainmentConfigurationId = entertainmentConfigurationId;
-        ChannelId = channelId;
-    }
 
     public override int GetHashCode()
         => HashCode.Combine(GetType(), EntertainmentConfigurationId, ChannelId);

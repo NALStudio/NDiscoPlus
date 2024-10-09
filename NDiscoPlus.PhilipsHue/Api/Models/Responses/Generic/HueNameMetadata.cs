@@ -5,9 +5,9 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.PhilipsHue.Api.Models.Responses.Generic;
-public readonly struct NameMetadata
+public readonly struct HueNameMetadata
 {
-    internal NameMetadata(string name)
+    internal HueNameMetadata(string name)
     {
         Name = name;
     }

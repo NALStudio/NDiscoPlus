@@ -80,24 +80,31 @@ public abstract class LightHandler : IAsyncDisposable
 
     public abstract ValueTask<bool> ValidateConfig(ErrorMessageCollector? errors);
 
+    /// <summary>
+    /// Get the lights of this handler with the current configuration.
+    /// </summary>
+    /// <returns>An async enumerable of the lights or an empty enumerable on error.</returns>
     public abstract IAsyncEnumerable<NDPLight> GetLights();
 
     /// <summary>
     /// <para>Start the handler if possible. </para>
-    /// <para>If handler is already running, should result in a no-op.</para>
+    /// <para>If handler is already running, should result in an error <i>(not exception!)</i>.</para>
     /// </summary>
-    public abstract ValueTask<bool> Start(ErrorMessageCollector? errors, out NDPLight[] lights);
+    /// <returns>The lights that are ready to receive updates or <see langword="null"/> if handler could not be started.</returns>
+    public abstract ValueTask<NDPLight[]?> Start(ErrorMessageCollector? errors);
     public abstract ValueTask Update(LightColorCollection lights);
 
     /// <summary>
-    /// If handler isn't running, should result in a no-op.
+    /// <para>If handler isn't running, should result in a no-op.</para>
+    /// <para>Stop is guaranteed to be called at least once which means it can be used to safely dispose any disposable resources.</para>
     /// </summary>
     public abstract ValueTask Stop();
 
     /// <summary>
     /// Flash the specified light with the provided color.
     /// </summary>
-    public abstract ValueTask Signal(LightId lightId, NDPColor color);
+    /// <returns>The length of the signal or <see langword="null"/> if unsuccessful (config not valid, etc.)</returns>
+    public abstract ValueTask<TimeSpan?> Signal(LightId lightId, NDPColor color);
 
     public ValueTask DisposeAsync()
     {

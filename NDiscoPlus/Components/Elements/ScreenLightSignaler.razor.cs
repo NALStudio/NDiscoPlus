@@ -10,6 +10,8 @@ namespace NDiscoPlus.Components.Elements;
 
 public partial class ScreenLightSignaler : IDisposable
 {
+    public static TimeSpan AnimationDuration => TimeSpan.FromSeconds(Animation.ForwardsSeconds + Animation.BackwardsSeconds);
+
     private class Animation
     {
         public const double ForwardsSeconds = 1;

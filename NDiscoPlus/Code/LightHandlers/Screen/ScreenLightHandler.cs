@@ -86,7 +86,7 @@ internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
     {
         foreach (NDPLight l in GetLightsInternal())
         {
-            await Task.Delay(100);
+            await Task.Delay(50);
             yield return l;
         }
     }
@@ -104,17 +104,18 @@ internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
         return new ValueTask<bool>(valid);
     }
 
-    public override ValueTask<bool> Start(ErrorMessageCollector? errors, out NDPLight[] lights)
+    public override ValueTask<NDPLight[]?> Start(ErrorMessageCollector? errors)
     {
-        if (this.lights is null)
+        if (lights is not null)
         {
-            NDPLight[] l = GetLightsInternal();
-            this.lights = new LightsContainer(l);
+            errors?.Add("Handler already running.");
+            return new((NDPLight[]?)null);
         }
 
-        lights = this.lights.Lights;
+        NDPLight[] l = GetLightsInternal();
+        lights = new LightsContainer(l);
 
-        return new ValueTask<bool>(true);
+        return new(l);
     }
 
     public override ValueTask Update(LightColorCollection lightColors)
@@ -135,12 +136,12 @@ internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
         return new();
     }
 
-    public override ValueTask Signal(LightId lightId, NDPColor color)
+    public override ValueTask<TimeSpan?> Signal(LightId lightId, NDPColor color)
     {
         ScreenLightId light = (ScreenLightId)lightId;
 
         if (Signaler is null)
-            throw new InvalidOperationException("Cannot signal without signaler.");
+            return new((TimeSpan?)null);
 
         int lightIndex = light.Index;
         int lightCount = light.TotalLightCount;
@@ -149,12 +150,12 @@ internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
         int lightsPerRow = lightCount / rowCount;
         Debug.Assert((lightsPerRow * rowCount) == lightCount);
 
-        (int yIndex, int xIndex) = Math.DivRem(light.Index, lightsPerRow);
+        (int yIndex, int xIndex) = Math.DivRem(lightIndex, lightsPerRow);
 
         double x = xIndex / (double)(lightsPerRow - 1);
         double y = yIndex / (double)(rowCount - 1);
         Signaler.Signal(x, y, color);
 
-        return ValueTask.CompletedTask;
+        return new(ScreenLightSignaler.AnimationDuration);
     }
 }

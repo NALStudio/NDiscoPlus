@@ -10,5 +10,5 @@ internal abstract class NDPBackgroundEffect
     {
     }
 
-    public abstract void Generate(Context ctx, EffectAPI api);
+    public abstract void Generate(BackgroundContext ctx, BackgroundChannelAPI api);
 }

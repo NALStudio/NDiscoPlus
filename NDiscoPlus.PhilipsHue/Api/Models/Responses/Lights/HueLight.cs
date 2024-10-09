@@ -11,7 +11,7 @@ namespace NDiscoPlus.PhilipsHue.Api.Models.Responses.Lights;
 internal readonly record struct HueLightOn(bool On);
 public class HueLight
 {
-    internal HueLight(Guid id, HueResourceIdentifier owner, NameMetadata metadata, HueLightOn hueLightOn, HueLightDimming? dimming, HueLightColorTemperature? colorTemperature, HueLightColor? color)
+    internal HueLight(Guid id, HueResourceIdentifier owner, HueNameMetadata metadata, HueLightOn hueLightOn, HueLightDimming? dimming, HueLightColorTemperature? colorTemperature, HueLightColor? color)
     {
         Id = id;
         Owner = owner;
@@ -24,7 +24,7 @@ public class HueLight
 
     public Guid Id { get; }
     public HueResourceIdentifier Owner { get; }
-    public NameMetadata Metadata { get; } // TODO: Include archetype and function metadata
+    public HueNameMetadata Metadata { get; } // TODO: Include archetype and function metadata
 
     [JsonInclude, JsonPropertyName("on")]
     private readonly HueLightOn hueLightOn;

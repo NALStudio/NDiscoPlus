@@ -142,7 +142,7 @@ public partial class LightPositionViewer : IDisposable
 
         await viewer.UpdateScene();
     }
-    public async Task Signal(NDPLight light, string color)
+    public async Task Signal(NDPLight light, TimeSpan duration, string color)
     {
         ThrowIfNotInitialized();
 
@@ -159,7 +159,7 @@ public partial class LightPositionViewer : IDisposable
         UpdateLight(data);
         await viewer.UpdateScene();
 
-        await Task.Delay(2000);
+        await Task.Delay(duration);
 
         data.Animation = null;
         UpdateLight(data);

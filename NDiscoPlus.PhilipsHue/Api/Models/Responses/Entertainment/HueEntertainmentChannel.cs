@@ -7,16 +7,15 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.PhilipsHue.Api.Models.Responses.Entertainment;
-public class EntertainmentChannelGet
+public class HueEntertainmentChannel
 {
-    internal EntertainmentChannelGet(byte channelId, HuePosition position, ImmutableArray<EntertainmentChannelLocations> locations)
+    internal HueEntertainmentChannel(byte channelId, HuePosition position)
     {
         ChannelId = channelId;
         Position = position;
-        Locations = locations;
     }
 
     public byte ChannelId { get; }
     public HuePosition Position { get; }
-    public ImmutableArray<EntertainmentChannelLocations> Locations { get; }
+    public ImmutableArray<HueSegmentReference> Members { get; }
 }

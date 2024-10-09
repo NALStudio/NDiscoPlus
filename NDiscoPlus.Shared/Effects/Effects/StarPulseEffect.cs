@@ -45,6 +45,8 @@ internal class StarPulseEffect : NDPEffect
 
         ClearChannelsForPulses(ctx, api);
 
+        // TODO: Filter out silent segments so that we don't spam lights during quiet parts
+        // (I'll do this once I get my debugging tools back into a working state)
         foreach (NDPInterval segment in ctx.Section.Timings.Segments)
         {
             TimeSpan pos = segment.Start;
@@ -52,9 +54,19 @@ internal class StarPulseEffect : NDPEffect
             NDPLight[] availableLights = channel.GetAvailableLights(pos).ToArray();
             LightId light;
             if (availableLights.Length > 0)
+            {
                 light = ctx.Random.Choice(availableLights).Id;
+            }
             else
-                light = channel.GetBusyEffects(pos).MinBy(e => e.End).LightId;
+            {
+                // Random select from two lowest value lights instead of taking the minimum value
+                // so that the pattern is random (instead of a repeating pattern) in case the segments go by two fast
+                Effect[] almostFinished = channel.GetBusyEffects(pos)
+                                                 .OrderBy(e => e.End)
+                                                 .Take(2)
+                                                 .ToArray();
+                light = ctx.Random.Choice(almostFinished).LightId;
+            }
 
             channel.Add(CreateEffect(light, pos, totalLightCount: channel.Lights.Count));
         }
@@ -70,10 +82,11 @@ internal class StarPulseEffect : NDPEffect
         {
             // Only clear channels that have priority lower than us
             // since if we clear _kChannel, GetAvailableLights() won't work
-            // and if we clear channels after _kChannel, we override the effect with black.
+            // and if we clear channels after _kChannel, we override this effect with black.
             if (channel.Channel >= _kChannel)
                 break;
 
+            // Cannot be consolidated into a single function with strobe lights since we filter out specific channels
             channel.Clear(clearInterval.Start, clearInterval.End);
             foreach (NDPLight light in channel.Lights)
                 channel.Add(new Effect(light.Id, clearInterval.Start, clearInterval.Duration, resetColor));
