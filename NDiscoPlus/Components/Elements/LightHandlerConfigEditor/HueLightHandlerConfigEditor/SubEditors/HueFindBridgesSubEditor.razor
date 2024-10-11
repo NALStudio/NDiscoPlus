@@ -116,8 +116,12 @@
             return $"Loading...";
         else if (!loadBridgesTask.Result.HasValue)
             return "Unknown error.";
+
+        ImmutableArray<DiscoveredBridge> bridges = loadBridgesTask.Result.Value;
+        if (bridges.Length == 1)
+            return $"{bridges.Length} bridge found";
         else
-            return $"{loadBridgesTask.Result.Value.Length} bridges found";
+            return $"{bridges.Length} bridges found";
     }
 
     private string GetMulticastSecondsRemaining()

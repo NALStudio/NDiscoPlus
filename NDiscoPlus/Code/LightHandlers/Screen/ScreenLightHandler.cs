@@ -46,38 +46,63 @@ internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
     protected override ScreenLightHandlerConfig CreateConfig()
         => new();
 
-    private static NDPLight[] GetLights4(ColorGamut colorGamut)
+    private NDPLight[] GetLights4()
     {
         return new NDPLight[]
         {
-            new(new ScreenLightId(4, 0), "Top-Left", new LightPosition(-0.5d, 0.5d, 0.5d), colorGamut: colorGamut),
-            new(new ScreenLightId(4, 1), "Top-Right", new LightPosition(0.5d, 0.5d, 0.5d), colorGamut: colorGamut),
-            new(new ScreenLightId(4, 2), "Bottom-Left", new LightPosition(-0.5d, -0.5d, -0.5d), colorGamut: colorGamut),
-            new(new ScreenLightId(4, 3), "Bottom-Right", new LightPosition(0.5d, -0.5d, -0.5d), colorGamut: colorGamut)
+            CreateLight(new ScreenLightId(4, 0), new LightPosition(-0.5d, 0.5d, 0.5d)),
+            CreateLight(new ScreenLightId(4, 1), new LightPosition(0.5d, 0.5d, 0.5d)),
+            CreateLight(new ScreenLightId(4, 2), new LightPosition(-0.5d, -0.5d, -0.5d)),
+            CreateLight(new ScreenLightId(4, 3), new LightPosition(0.5d, -0.5d, -0.5d))
         };
     }
 
-    private static NDPLight[] GetLights6(ColorGamut colorGamut)
+    private NDPLight[] GetLights6()
     {
         return new NDPLight[]
         {
-            new(new ScreenLightId(6, 0), "Top-Left", new LightPosition(-0.5d, 0.5d, 0.5d), colorGamut: colorGamut),
-            new(new ScreenLightId(6, 1), "Top-Mid", new LightPosition(0, 0.5d, 0.5d), colorGamut: colorGamut),
-            new(new ScreenLightId(6, 2), "Top-Right", new LightPosition(0.5d, 0.5d, 0.5d), colorGamut: colorGamut),
-            new(new ScreenLightId(6, 3), "Bottom-Left", new LightPosition(-0.5d, -0.5d, -0.5d), colorGamut: colorGamut),
-            new(new ScreenLightId(6, 4), "Bottom-Mid", new LightPosition(0, -0.5d, -0.5d), colorGamut: colorGamut),
-            new(new ScreenLightId(6, 5), "Bottom-Right", new LightPosition(0.5d, -0.5d, -0.5d), colorGamut: colorGamut)
+            CreateLight(new ScreenLightId(6, 0), new LightPosition(-0.5d, 0.5d, 0.5d)),
+            CreateLight(new ScreenLightId(6, 1), new LightPosition(0, 0.5d, 0.5d)),
+            CreateLight(new ScreenLightId(6, 2), new LightPosition(0.5d, 0.5d, 0.5d)),
+            CreateLight(new ScreenLightId(6, 3), new LightPosition(-0.5d, -0.5d, -0.5d)),
+            CreateLight(new ScreenLightId(6, 4), new LightPosition(0, -0.5d, -0.5d)),
+            CreateLight(new ScreenLightId(6, 5), new LightPosition(0.5d, -0.5d, -0.5d))
+        };
+    }
+
+    private NDPLight CreateLight(ScreenLightId id, LightPosition pos)
+    {
+        ColorGamut colorGamut = Config.UseHDR ? ColorGamut.DisplayP3 : ColorGamut.sRGB;
+
+        string leftRight = pos.X switch
+        {
+            < 0 => "Left",
+            > 0 => "Right",
+            _ => "Mid"
+        };
+        string topBottom = pos.Y switch
+        {
+            < 0 => "Bottom",
+            > 0 => "Top",
+            _ => "Mid"
+        };
+
+        return new()
+        {
+            Id = id,
+            DisplayName = $"{topBottom}-{leftRight}",
+            Position = pos,
+            ColorGamut = colorGamut,
+            ExpectedLatency = TimeSpan.Zero
         };
     }
 
     private NDPLight[] GetLightsInternal()
     {
-        ColorGamut colorGamut = Config.UseHDR ? ColorGamut.DisplayP3 : ColorGamut.sRGB;
-
         if (Config.LightCount == ScreenLightCount.Four)
-            return GetLights4(colorGamut);
+            return GetLights4();
         else if (Config.LightCount == ScreenLightCount.Six)
-            return GetLights6(colorGamut);
+            return GetLights6();
         else
             throw new InvalidLightHandlerConfigException("Invalid light count.");
     }

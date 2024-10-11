@@ -8,7 +8,6 @@ using NDiscoPlus.Shared.Effects.BaseEffects;
 using NDiscoPlus.Shared.Effects.Strobes;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
-using NDiscoPlus.Shared.Models.ChunkedEffectsCollection;
 using NDiscoPlus.Shared.Models.Color;
 using NDiscoPlus.Shared.Music;
 using NDiscoPlus.Spotify.Models;
@@ -81,15 +80,17 @@ public class NDiscoPlusService : IDisposable
             args.Lights
         );
 
-        Models.Context context = new(
+        BaseContext context = new(
             random: random,
-            palette: effectPalette,
-            analysis: analysis
+            palette: effectPalette
         );
 
+        // Background
+        BackgroundContext backgroundContext = BackgroundContext.Extend(context, analysis);
+        new ColorCycleBackgroundEffect().Generate(backgroundContext, api);
 
         // Strobes (before effects)
-        StrobeContext strobeContext = StrobeContext.Extend(context, effects);
+        StrobeContext strobeContext = StrobeContext.Extend(context, analysis, effects);
         foreach (NDPStrobe strobe in NDPStrobe.BeforeEffects)
             strobe.Generate(strobeContext, api);
 
@@ -104,12 +105,13 @@ public class NDiscoPlusService : IDisposable
         foreach (NDPStrobe strobe in NDPStrobe.AfterEffects)
             strobe.Generate(strobeContext, api);
 
-        // Background
-        new ColorCycleBackgroundEffect().Generate(context, api);
-
         float endOfFadeIn = args.Analysis.Track.EndOfFadeIn;
         float startOfFadeOut = args.Analysis.Track.StartOfFadeOut;
 
+        ImmutableDictionary<LightId, NDPColor> lightPaletteColors = args.Lights.ToImmutableDictionary(
+            keySelector: static lr => lr.Light.Id,
+            elementSelector: _ => random.Choice(effectPalette)
+        );
 
         // *** OUTPUT ***
         return new NDPData(
@@ -120,7 +122,8 @@ public class NDiscoPlusService : IDisposable
             effectConfig: api.Config,
             effects: ChunkedEffectsCollection.Construct(api),
 
-            lights: args.Lights
+            lights: args.Lights,
+            lightPaletteAssignedColors: lightPaletteColors
         );
     }
 

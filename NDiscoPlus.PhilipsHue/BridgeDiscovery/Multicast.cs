@@ -14,22 +14,15 @@ public static partial class HueBridgeDiscovery
     {
         static DiscoveredBridge ConvertToBridge(IZeroconfHost host)
         {
-            IReadOnlyDictionary<string, string> properties = host.Services["hue"].Properties.Single();
-
-            string bridgeId = properties["bridgeid"];
-
-            Debug.Assert(host.DisplayName.EndsWith($" - {bridgeId[..^6]}"));
-            string name = host.DisplayName[..^9];
-
             return new()
             {
-                Name = name,
-                BridgeId = bridgeId,
-                IpAddress = host.IPAddresses.Single()
+                Name = host.DisplayName,
+                BridgeId = null,
+                IpAddress = host.IPAddress
             };
         }
 
-        IReadOnlyList<IZeroconfHost> result = await ZeroconfResolver.ResolveAsync("_hue._tcp local.", scanTime: scanTime);
+        IReadOnlyList<IZeroconfHost> result = await ZeroconfResolver.ResolveAsync("_hue._tcp.local.", scanTime: scanTime);
         return result.Select(static r => ConvertToBridge(r)).ToArray();
     }
 

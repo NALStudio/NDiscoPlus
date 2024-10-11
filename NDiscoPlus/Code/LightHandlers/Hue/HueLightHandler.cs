@@ -15,6 +15,11 @@ namespace NDiscoPlus.Code.LightHandlers.Hue;
 
 public class HueLightHandler : LightHandler<HueLightHandlerConfig>
 {
+    // Implemented for future-proofing
+    // Currently I can't find any info on Philips Hue Entertainment latency,
+    // but this can be adjusted later if I observe any latency IRL.
+    private static readonly TimeSpan _kExpectedLatency = TimeSpan.Zero;
+
     private readonly record struct ValidatedConfig(
         string BridgeIp,
         HueCredentials Credentials,
@@ -74,7 +79,14 @@ public class HueLightHandler : LightHandler<HueLightHandlerConfig>
         LightPosition position = new(channel.Position.X, channel.Position.Y, channel.Position.Z);
         ColorGamut? gamut = TryConstructGamut(light.Color?.Gamut);
 
-        return new NDPLight(lightId, displayName, position, gamut);
+        return new NDPLight()
+        {
+            Id = lightId,
+            DisplayName = displayName,
+            Position = position,
+            ColorGamut = gamut,
+            ExpectedLatency = _kExpectedLatency
+        };
     }
 
     private static ColorGamut? TryConstructGamut(HueGamut? gamut)

@@ -8,7 +8,7 @@ internal class BaseContext
     public Random Random { get; }
     public NDPColorPalette Palette { get; }
 
-    protected BaseContext(Random random, NDPColorPalette palette)
+    public BaseContext(Random random, NDPColorPalette palette)
     {
         Random = random;
         Palette = palette;

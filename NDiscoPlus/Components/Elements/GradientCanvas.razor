@@ -92,11 +92,24 @@
         return vec3(r, g, b);
     }
 
-    vec3 FourPointGradient(vec2 pos, vec3 topleft, vec3 topright, vec3 bottomleft, vec3 bottomright) {
-        vec3 top = mix(topleft, topright, pos.x);
-        vec3 bottom = mix(bottomleft, bottomright, pos.x);
+    vec3 xyYGradient(vec3 from, vec3 to, float t) {
+        // To produce a correct gradient
+        // we need to match the XY positions when brightness is 0
+        if (from.z == 0.) {
+            from = vec3(to.xy, 0.);
+        }
+        else if (to.z == 0.) {
+            to = vec3(from.xy, 0.);
+        }
 
-        return mix(bottom, top, pos.y); // pos.y == 0: bottom, pos.y == 1: top
+        return mix(from, to, t);
+    }
+
+    vec3 FourPointGradient(vec2 pos, vec3 topleft, vec3 topright, vec3 bottomleft, vec3 bottomright) {
+        vec3 top = xyYGradient(topleft, topright, pos.x);
+        vec3 bottom = xyYGradient(bottomleft, bottomright, pos.x);
+
+        return xyYGradient(bottom, top, pos.y); // pos.y == 0: bottom, pos.y == 1: top
     }
 
     vec3 SixPointGradient(vec2 pos, vec3 topleft, vec3 topmid, vec3 topright, vec3 bottomleft, vec3 bottommid, vec3 bottomright) {
@@ -104,16 +117,16 @@
         vec3 bottom;
         if (pos.x <= 0.5) {
             float scaledX = 2. * pos.x;
-            top = mix(topleft, topmid, scaledX);
-            bottom = mix(bottomleft, bottommid, scaledX);
+            top = xyYGradient(topleft, topmid, scaledX);
+            bottom = xyYGradient(bottomleft, bottommid, scaledX);
         }
         else {
             float scaledX = 2. * (pos.x - 0.5);
-            top = mix(topmid, topright, scaledX);
-            bottom = mix(bottommid, bottomright, scaledX);
+            top = xyYGradient(topmid, topright, scaledX);
+            bottom = xyYGradient(bottommid, bottomright, scaledX);
         }
 
-        return mix(bottom, top, pos.y); // pos.y goes from bottom to top (y increases upwards)
+        return xyYGradient(bottom, top, pos.y); // pos.y goes from bottom to top (y increases upwards)
     }
 
     float _ditherRandom(highp vec2 coords) {

@@ -28,16 +28,16 @@ public readonly record struct LightInterpreterResult
 
 public class LightInterpreter
 {
-    private const int MAX_SIMULTANEOUS_ANIMATIONS = 64;
-    private const int SIMULTANEOUS_ANIMATIONS_HALF_WINDOWSIZE = MAX_SIMULTANEOUS_ANIMATIONS / 2;
-
-    private readonly Random random = new();
     private Stopwatch? deltaTimeSW;
 
-    private static IEnumerable<(LightId Light, NDPColor Color)> UpdateBackground(TimeSpan progress, NDPData data)
+    private static IEnumerable<KeyValuePair<LightId, NDPColor>> UpdateBackground(TimeSpan progress, NDPData data)
     {
+        ChunkedEffectsCollection effects = data.Effects;
+        if (effects.GetBackgroundDisabled(progress))
+            yield break;
+
         int index = -1;
-        foreach ((LightId lightId, ImmutableArray<BackgroundTransition> transitions) in data.Effects.BackgroundTransitions)
+        foreach ((LightId lightId, ImmutableArray<BackgroundTransition> transitions) in effects.BackgroundTransitions)
         {
             index++;
 
@@ -77,7 +77,7 @@ public class LightInterpreter
                 color = paletteColor;
             }
 
-            yield return (lightId, color);
+            yield return new(lightId, color);
         }
     }
 
@@ -113,7 +113,7 @@ public class LightInterpreter
                     color = color.Clamp(light.ColorGamut);
 
                 // handle brightness
-                if (lightRecord.Brightness != 1d)
+                if (lightRecord.Brightness != 1d) // if lightRecord brightness is 1, multiplication does nothing and thus copying the object is just a waste of time
                     color = color.CopyWith(brightness: color.Brightness * lightRecord.Brightness);
 
                 lights[light.Id] = color;
@@ -150,15 +150,9 @@ public class LightInterpreter
 
     public LightInterpreterResult Update(TimeSpan progress, NDPData data)
     {
-        // TODO: Reuse lights dictionary and use chunk to update shit
-        ChunkedEffectsCollection.ChunkView chunk = data.Effects.GetChunk(progress);
-
-        Dictionary<LightId, NDPColor> lights = UpdateBackground(progress, data).ToDictionary(key => key.Light, value => value.Color);
+        Dictionary<LightId, NDPColor> lights = UpdateBackground(progress, data).ToDictionary();
 
         UpdateEffects(ref lights, data, progress);
-
-        // TODO: Create dictionary once with all the lights and just operate on them directly
-        // and of course clamp at the end etc.
         HandleLimitationsAndAddMissingLights(ref lights, data.Lights);
 
         double deltaTime = TickDeltaTime();

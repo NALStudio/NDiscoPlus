@@ -19,18 +19,10 @@ public readonly struct LightPosition
 
 public readonly struct NDPLight
 {
-    public NDPLight(LightId id, string? displayName, LightPosition position, ColorGamut? colorGamut)
-    {
-        Id = id;
-        DisplayName = displayName;
+    public required LightId Id { get; init; }
+    public required string? DisplayName { get; init; }
 
-        Position = position;
-        ColorGamut = colorGamut;
-    }
-
-    public LightId Id { get; }
-    public string? DisplayName { get; }
-
-    public LightPosition Position { get; }
-    public ColorGamut? ColorGamut { get; }
+    public required LightPosition Position { get; init; }
+    public required ColorGamut? ColorGamut { get; init; }
+    public required TimeSpan? ExpectedLatency { get; init; }
 }

@@ -5,6 +5,7 @@ using NDiscoPlus.Shared.Effects.API.Channels.Background.Intrinsics;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Helpers;
+using NDiscoPlus.Shared.Models.Color;
 using NDiscoPlus.Spotify.Models;
 using System.Buffers;
 using System.Collections.Frozen;
@@ -20,7 +21,7 @@ public class NDPData
         SpotifyPlayerTrack track,
         NDPColorPalette referencePalette, NDPColorPalette effectPalette,
         EffectConfig effectConfig, ChunkedEffectsCollection effects,
-        ImmutableArray<LightRecord> lights
+        ImmutableArray<LightRecord> lights, ImmutableDictionary<LightId, NDPColor> lightPaletteAssignedColors
     )
     {
         Track = track;
@@ -31,6 +32,7 @@ public class NDPData
         Effects = effects;
 
         Lights = lights;
+        LightPaletteAssignedColors = lightPaletteAssignedColors;
     }
 
     public SpotifyPlayerTrack Track { get; }
@@ -42,4 +44,5 @@ public class NDPData
     public ChunkedEffectsCollection Effects { get; }
 
     public ImmutableArray<LightRecord> Lights { get; }
+    public ImmutableDictionary<LightId, NDPColor> LightPaletteAssignedColors { get; }
 }

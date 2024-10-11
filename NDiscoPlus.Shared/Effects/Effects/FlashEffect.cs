@@ -21,39 +21,93 @@ internal class FlashEffect : NDPEffect
     {
     }
 
+    private class LightGroup
+    {
+        public ImmutableArray<NDPLight> Lights { get; init; }
+        public NDPColor Color { get; set; }
+
+        private LightGroup(ImmutableArray<NDPLight> lights, NDPColor color)
+        {
+            Lights = lights;
+            Color = color;
+        }
+
+        public static LightGroup Create(EffectContext ctx, IEnumerable<NDPLight> lights)
+        {
+            return new(lights.ToImmutableArray(), ctx.Random.Choice(ctx.Palette));
+        }
+    }
+
     public override void Generate(EffectContext ctx, EffectAPI api)
     {
         EffectChannel? channel = api.GetChannel(_kChannel);
         if (channel is null)
             return;
 
-        (NDPLight[] Group1, NDPLight[] Group2) = GroupLights(channel);
+        ClearChannelsForFlashes(ctx, api);
+
+        (NDPLight[], NDPLight[]) grouped = GroupLights(channel);
+        LightGroup[] groups = [LightGroup.Create(ctx, grouped.Item1), LightGroup.Create(ctx, grouped.Item2)];
 
         ImmutableArray<NDPInterval> beats = ctx.Section.Timings.Beats;
 
-        NDPColor? previouslyShown = null;
         for (int i = 0; i < beats.Length; i++)
         {
-            NDPColor color;
+            NDPInterval beat = beats[i];
+            LightGroup currentGroup = groups[i % groups.Length];
+
+            NDPColor newColor;
             do
             {
-                color = ctx.Random.Choice(ctx.Palette);
-            } while (color == previouslyShown);
+                newColor = ctx.Random.Choice(ctx.Palette);
+            } while (newColor == currentGroup.Color);
+            currentGroup.Color = newColor;
 
-            NDPLight[] group = (i % 2 == 0) ? Group1 : Group2;
-            aslkdjflkasdjlkfj lkajsd NOT FINISHED
+            // Update all lights with background color
+            foreach (LightGroup g in groups)
+            {
+                foreach (NDPLight l in g.Lights)
+                {
+                    channel.Add(
+                        new Effect(
+                            l.Id,
+                            beat.Start,
+                            beat.Duration
+                        )
+                        {
+                            X = g.Color.X,
+                            Y = g.Color.Y,
+                            Brightness = api.Config.BaseBrightness
+                        }
+                    );
+                }
+            }
+
+            // Update current group with brightness 1
+            // I'm not sure if this needs to be afer color set or not, but I'll keep it here just in case
+            foreach (NDPLight light in currentGroup.Lights)
+            {
+                channel.Add(
+                    new Effect(
+                        light.Id,
+                        beat.Start,
+                        EffectConstants.MinEffectDuration,
+                        brightness: 1d
+                    )
+                );
+            }
         }
-
-        // TODO: Use the new background disable API instead of ClearChannelsForStrobes
     }
 
-    private (NDPLight[], NDPLight[]) GroupLights(EffectChannel channel)
+    private static (NDPLight[], NDPLight[]) GroupLights(EffectChannel channel)
     {
         List<NDPLight[]> lightsSplit = channel.Lights.SplitX(tolerance: 0.2);
+        if (lightsSplit.Count < 2) // If lights couldn't be split, force split into 3 groups
+            lightsSplit = channel.Lights.GroupX(3);
 
         List<NDPLight> group1 = new(capacity: lightsSplit.Count); // I'd rather overallocate than reallocate
         List<NDPLight> group2 = new(capacity: lightsSplit.Count);
-        if (lightsSplit.Count % 2 == 0) // Grouping is different based on if light count is even or odd
+        if (lightsSplit.Count % 2 != 0) // Grouping is different based on if light count is even or odd
         {
             // When odd, intertwine lightSplit groups
             for (int i = 0; i < lightsSplit.Count; i++)
@@ -96,31 +150,28 @@ internal class FlashEffect : NDPEffect
         return (group1.ToArray(), group2.ToArray());
     }
 
-    private static void ClearChannelsForStrobes(EffectContext ctx, EffectAPI api)
+    private static void ClearChannelsForFlashes(EffectContext ctx, EffectAPI api)
     {
-        // we sync using beats currently, but this might change in the future
-        NDPInterval lastSyncObject = ctx.Section.Timings.Beats[^1];
-        TimeSpan strobeEnd = lastSyncObject.End;
-        // Debug.Assert(strobeEnd >= ctx.End); This assert seemed to cause some crashes
+        // Not using the new background disable API
+        // as I don't want the previous effect's effects to mess with ours
 
-        TimeSpan clearStart = ctx.Section.Interval.Start;
-        TimeSpan clearEnd = strobeEnd;
-        TimeSpan clearLength = clearEnd - clearStart;
+        NDPInterval clearInterval = ctx.Section.Interval;
 
-        // Use strobe color as the tint of the black color doesn't matter
-        // (animation duration is 0 so we don't interpolate between colors)
-        NDPColor strobeResetColor = api.Config.StrobeColor.CopyWith(brightness: 0d);
         foreach (EffectChannel channel in api.Channels)
         {
-            // Do not clear any channels beyond our channel or we will draw black over this effect
-            // This also allows strobes to pass through which would look nice :)
-            if (channel.Channel <= _kChannel)
-                channel.Clear(clearStart, clearEnd);
-            // Technically I could pass flashes through if all of the lights in the flash channel are overridden from the earlier channels
-            // but I'm not sure this is always the case... which is why I'm a bit hesitant on this.
+            // Only clear channels that have priority lower than or equal to us
+            // and if we clear channels after _kChannel, we override this effect with black.
+            if (channel.Channel > _kChannel)
+                break;
 
+            // Cannot be consolidated into a single function with strobe lights since we filter out specific channels
+            channel.Clear(clearInterval.Start, clearInterval.End);
             foreach (NDPLight light in channel.Lights)
-                channel.Add(new Effect(light.Id, clearStart, clearLength, strobeResetColor));
+            {
+                // reset color doesn't matter as we don't interpolate between colors
+                NDPColor resetColor = light.ColorGamut.GamutBlack();
+                channel.Add(new Effect(light.Id, clearInterval.Start, clearInterval.Duration, resetColor));
+            }
         }
     }
 }

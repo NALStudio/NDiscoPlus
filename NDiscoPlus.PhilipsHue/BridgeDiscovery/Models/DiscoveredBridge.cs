@@ -12,6 +12,6 @@ public record DiscoveredBridge
     [JsonPropertyName("internalipaddress")]
     public required string IpAddress { get; init; }
 
-    [JsonPropertyName("id")]
-    public required string BridgeId { get; init; }
+    [JsonPropertyName("id")] // Nullable because we don't know this during multicast
+    public required string? BridgeId { get; init; }
 }

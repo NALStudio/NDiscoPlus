@@ -19,8 +19,6 @@ internal class ColorSwitchEffect : NDPEffect
     const bool _kUseFadeIn = true;
     const bool _kUseFadeOut = true;
 
-    const bool _kInitializeUsingBackgroundApproximation = false;
-
     public ColorSwitchEffect(EffectIntensity intensity) : base(intensity)
     {
     }
@@ -53,20 +51,18 @@ internal class ColorSwitchEffect : NDPEffect
         Dictionary<LightId, NDPColor?> colors;
         ImmutableDictionary<LightId, NDPColor?> approximateBackgroundColors;
 
-#pragma warning disable CS0162 // Unreachable code detected
-        if (_kInitializeUsingBackgroundApproximation)
-        {
-            Debug.Assert(api.Background is not null);
-            colors = channel.Lights.Values.ToDictionary(key => key.Id, _ => (NDPColor?)null);
-            approximateBackgroundColors = channel.Lights.Values.ToImmutableDictionary(key => key.Id, value => api.Background.GetAt(value.Id, ctx.Section.Interval.Start)?.Color);
-        }
-        else
-        {
-            NDPColor[] paletteColors = ctx.Palette.ToArray();
-            colors = channel.Lights.Values.ToDictionary(key => key.Id, _ => (NDPColor?)ctx.Random.Choice(paletteColors));
-            approximateBackgroundColors = ImmutableDictionary<LightId, NDPColor?>.Empty;
-        }
-#pragma warning restore CS0162
+        // if (_kInitializeUsingBackgroundApproximation)
+        // {
+        //     Debug.Assert(api.Background is not null);
+        //     colors = channel.Lights.Values.ToDictionary(key => key.Id, _ => (NDPColor?)null);
+        //     approximateBackgroundColors = channel.Lights.Values.ToImmutableDictionary(key => key.Id, value => api.Background.GetAt(value.Id, ctx.Section.Interval.Start)?.Color);
+        // }
+        // else
+        // {
+        NDPColor[] paletteColors = ctx.Palette.ToArray();
+        colors = channel.Lights.Values.ToDictionary(key => key.Id, _ => (NDPColor?)ctx.Random.Choice(paletteColors));
+        approximateBackgroundColors = ImmutableDictionary<LightId, NDPColor?>.Empty;
+        // }
 
         HashSet<LightId> changedLights = new();
         for (int i = 0; i < ctx.Section.Timings.Beats.Length; i += beatsPerAnimation)
