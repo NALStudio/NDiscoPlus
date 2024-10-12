@@ -145,7 +145,7 @@
             {
                 LightHandlerImplementation impl = handler.Implementation;
                 LightHandlerConfig config = handler.Config;
-                var parameters = LightHandlerConfigEditor<LightHandlerConfig>.CreateParametersDictionary(config);
+                var parameters = LightHandlerConfigEditor<LightHandlerConfig>.CreateParametersDictionary(config, LightHandlerConfigEditorSetCurrentProfileEdited);
                 Type editorType = config.GetEditorType();
 
                 <MudExpansionPanel>
@@ -310,6 +310,12 @@
         }
     }
 
+    private void LightHandlerConfigEditorSetCurrentProfileEdited()
+    {
+        CurrentProfileEdited = true;
+        StateHasChanged();
+    }
+
     private void OnViewerLightSelected(LightId? light)
     {
         ThrowIfProfileDataIsNull();
@@ -362,7 +368,8 @@
         TimeSpan? handlerSignalDuration = await light.Handler.Signal(light.Light.Id, red);
         Task viewerSignal = lightPositionViewer!.Signal(
             light: light.Light, 
-            duration: handlerSignalDuration ?? TimeSpan.FromSeconds(2),
+            // Add a bit of extra duration since light position viewer signal seems to always be quicker than other signals
+            duration: (handlerSignalDuration ?? TimeSpan.FromSeconds(2)) + TimeSpan.FromSeconds(0.25d),
             color: ColorHelpers.ToHTMLColorRGB(red.ToSRGB())
         );
 

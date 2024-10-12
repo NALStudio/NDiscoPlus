@@ -4,11 +4,12 @@
 @using NDiscoPlus.Code.NDPIcons
 @using NDiscoPlus.PhilipsHue.BridgeDiscovery
 @using NDiscoPlus.PhilipsHue.BridgeDiscovery.Models
+@using System.Collections.Concurrent
 
 @inject ILogger<HueFindBridgesSubEditor> logger
 
 <MudPaper Class="mud-theme-primary" Elevation="3">
-    <MudList T="object">
+    <MudList T="object" Disabled="@(loadBridgesTask?.IsCompleted != true)">
         <MudListSubheader Class="shades-text text-white">
             <MudStack Row="true" AlignItems="AlignItems.Center">
                 <div>
@@ -35,28 +36,30 @@
                 }
             </MudStack>
         </MudListSubheader>
-
-        @if (loadBridgesTask?.IsCompleted == true && loadBridgesTask.Result is not null)
+        @foreach (DiscoveredBridge bridge in GetBridgesToDisplay())
         {
-            @foreach (DiscoveredBridge bridge in loadBridgesTask.Result)
-            {
-                <MudListItem OnClick="@(() => SelectBridge(bridge))"
-                             Icon="@(HueIcons.BridgeV2)"
-                             Text="@(bridge.Name ?? bridge.BridgeId)"
-                             SecondaryText="@(bridge.IpAddress)" />
-            }
+            <MudListItem OnClick="@(() => SelectBridge(bridge))">
+                <ChildContent>
+                    @(bridge.Name ?? bridge.BridgeId)
+                    <MudText Style="font-weight:500" Typo="Typo.subtitle2">@(bridge.IpAddress)</MudText>
+                </ChildContent>
+                <AvatarContent>
+                    <MudIcon Icon="@(HueIcons.BridgeV2)" />
+                </AvatarContent>
+            </MudListItem>
         }
     </MudList>
 </MudPaper>
 
 @code {
-    [CascadingParameter]
+    [Parameter]
     public required HueLightHandlerConfig Config { get; init; }
 
-    [CascadingParameter]
+    [Parameter]
     public required Action ConfigHasChanged { get; init; }
 
     private Task<ImmutableArray<DiscoveredBridge>?>? loadBridgesTask;
+    private ConcurrentBag<DiscoveredBridge> interimDiscoveredBridges = new();
 
     private const int multicastSeconds = 11;
     private int multicastElapsedSeconds = -1;
@@ -68,9 +71,25 @@
 
     private void ReloadBridges()
     {
+        interimDiscoveredBridges.Clear();
         loadBridgesTask = _LoadBridges();
         loadBridgesTask.ContinueWith(_ => StateHasChanged(), TaskContinuationOptions.ExecuteSynchronously);
         _ = UpdateMulticastProgress();
+    }
+
+    private IEnumerable<DiscoveredBridge> GetBridgesToDisplay()
+    {
+        if (loadBridgesTask?.IsCompleted == true)
+        {
+            if (loadBridgesTask.Result is not null)
+                return loadBridgesTask.Result;
+            else
+                return Enumerable.Empty<DiscoveredBridge>();
+        }
+        else
+        {
+            return interimDiscoveredBridges;
+        }
     }
 
     private async Task UpdateMulticastProgress()
@@ -89,12 +108,20 @@
         }
     }
 
+    private void _NewBridgeFound(DiscoveredBridge bridge)
+    {
+        interimDiscoveredBridges.Add(bridge);
+        // StateHasChanged();
+        // UpdateMulticastProgress refreshes the component once in a while
+        // we'll use that to update the bridges as well since Multicast callback is from a different thread
+    }
+
     private async Task<ImmutableArray<DiscoveredBridge>?> _LoadBridges()
     {
         DiscoveredBridge[]? bridges;
         try
         {
-            bridges = await HueBridgeDiscovery.Multicast(TimeSpan.FromSeconds(multicastSeconds));
+            bridges = await HueBridgeDiscovery.Multicast(TimeSpan.FromSeconds(multicastSeconds), _NewBridgeFound);
         }
         catch (Exception e)
         {
@@ -107,7 +134,8 @@
 
     private void SelectBridge(DiscoveredBridge bridge)
     {
-        throw new NotImplementedException();
+        Config.BridgeIP = bridge.IpAddress;
+        ConfigHasChanged();
     }
 
     private string GetBridgesFoundText()

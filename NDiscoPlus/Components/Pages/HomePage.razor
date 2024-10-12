@@ -52,7 +52,7 @@
     <GradientCanvas Colors="@BestBackgroundGradientOption"
                     Width="@(windowSize?.Width ?? 1920)"
                     Height="@(windowSize?.Height ?? 1080)"
-                    UseHDR="@(lightHandling?.ScreenLightHandlerSingleton.Render.HDR ?? false)" />
+                    UseHDR="@(lightHandling?.ScreenLightHandlerSingleton?.Render.HDR ?? false)" />
 </div>
 <!-- padding-top:20vh and Justify.FlexStart since centering the item looks a bit stupid... Moving the elements slightly up looks nicer. -->
 <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
@@ -228,7 +228,7 @@
     record LightHandlingData(
         ImmutableArray<LightHandler> Handlers,
         ImmutableArray<LightRecord> Lights,
-        ScreenLightHandler ScreenLightHandlerSingleton
+        ScreenLightHandler? ScreenLightHandlerSingleton
     )
     {
         public string? CurrentDataTrackId{ get; set; }
@@ -245,7 +245,16 @@
     const string TimespanFormat = @"mm\:ss";
 
     static readonly PaletteGradient defaultGradient = new(NDPDefaultPalettes.DefaultSRGB);
-    public IReadOnlyList<NDPColor> BestBackgroundGradientOption => lightHandling?.ScreenLightHandlerSingleton.Render.Colors ?? TryGetTrackGradient(context?.Track)?.Gradient ?? defaultGradient.GradientMustNotBeNull;
+    public IReadOnlyList<NDPColor> BestBackgroundGradientOption
+    {
+        get
+        {
+            if (lightHandling is not null)
+                return lightHandling.ScreenLightHandlerSingleton?.Render.Colors ?? new NDPColor[4];
+            else
+                return TryGetTrackGradient(context?.Track)?.Gradient ?? defaultGradient.GradientMustNotBeNull;
+        }
+    }
 
     // Large capacity is fine. I'd rather use a bit more memory than compute a new gradient (heavy operation!)
     readonly LRUCache<string, Task<PaletteGradient?>> trackIdToGradientCache = new(capacity: 50);
@@ -433,7 +442,7 @@
         await Task.Delay(500);
 
         LightProfile profile = LightProfile.LoadCurrent();
-        ScreenLightHandler screenLightHandlerSingleton = (ScreenLightHandler)profile.Handlers.Single(lh => lh is ScreenLightHandler);
+        ScreenLightHandler? screenLightHandlerSingleton = (ScreenLightHandler?)profile.Handlers.SingleOrDefault(lh => lh is ScreenLightHandler);
 
         Stopwatch startupTimer = Stopwatch.StartNew();
 
@@ -648,8 +657,7 @@
 
         NDiscoPlusArgs args = new(track, features, analysis, EffectConfig.Default, lightHandling.Lights)
         {
-            ReferencePalette = referencePalette,
-            AllowHDR = lightHandling.ScreenLightHandlerSingleton.Render.HDR
+            ReferencePalette = referencePalette
         };
 
         Stopwatch sw = Stopwatch.StartNew();

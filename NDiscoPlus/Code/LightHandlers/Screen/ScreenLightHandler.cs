@@ -48,25 +48,29 @@ internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
 
     private NDPLight[] GetLights4()
     {
+        ScreenLightMetrics metrics = Config.LightMetrics;
+
         return new NDPLight[]
         {
-            CreateLight(new ScreenLightId(4, 0), new LightPosition(-0.5d, 0.5d, 0.5d)),
-            CreateLight(new ScreenLightId(4, 1), new LightPosition(0.5d, 0.5d, 0.5d)),
-            CreateLight(new ScreenLightId(4, 2), new LightPosition(-0.5d, -0.5d, -0.5d)),
-            CreateLight(new ScreenLightId(4, 3), new LightPosition(0.5d, -0.5d, -0.5d))
+            CreateLight(new ScreenLightId(4, 0), new LightPosition(metrics.Left,  metrics.Y, metrics.Top)),
+            CreateLight(new ScreenLightId(4, 1), new LightPosition(metrics.Right, metrics.Y, metrics.Top)),
+            CreateLight(new ScreenLightId(4, 2), new LightPosition(metrics.Left,  metrics.Y, metrics.Bottom)),
+            CreateLight(new ScreenLightId(4, 3), new LightPosition(metrics.Right, metrics.Y, metrics.Bottom))
         };
     }
 
     private NDPLight[] GetLights6()
     {
+        ScreenLightMetrics metrics = Config.LightMetrics;
+
         return new NDPLight[]
         {
-            CreateLight(new ScreenLightId(6, 0), new LightPosition(-0.5d, 0.5d, 0.5d)),
-            CreateLight(new ScreenLightId(6, 1), new LightPosition(0, 0.5d, 0.5d)),
-            CreateLight(new ScreenLightId(6, 2), new LightPosition(0.5d, 0.5d, 0.5d)),
-            CreateLight(new ScreenLightId(6, 3), new LightPosition(-0.5d, -0.5d, -0.5d)),
-            CreateLight(new ScreenLightId(6, 4), new LightPosition(0, -0.5d, -0.5d)),
-            CreateLight(new ScreenLightId(6, 5), new LightPosition(0.5d, -0.5d, -0.5d))
+            CreateLight(new ScreenLightId(6, 0), new LightPosition(metrics.Left,  metrics.Y, metrics.Top)),
+            CreateLight(new ScreenLightId(6, 1), new LightPosition(metrics.Mid,   metrics.Y, metrics.Top)),
+            CreateLight(new ScreenLightId(6, 2), new LightPosition(metrics.Right, metrics.Y, metrics.Top)),
+            CreateLight(new ScreenLightId(6, 3), new LightPosition(metrics.Left,  metrics.Y, metrics.Bottom)),
+            CreateLight(new ScreenLightId(6, 4), new LightPosition(metrics.Mid,   metrics.Y, metrics.Bottom)),
+            CreateLight(new ScreenLightId(6, 5), new LightPosition(metrics.Right, metrics.Y, metrics.Bottom))
         };
     }
 

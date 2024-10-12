@@ -26,7 +26,7 @@ public sealed class HueEntertainment : IDisposable
     private readonly IPAddress bridgeIp;
     private readonly HueCredentials credentials;
 
-    private readonly Guid entertainmentConfiguration;
+    public Guid EntertainmentConfiguration { get; }
     private readonly ImmutableArray<byte> entConfigBytes;
 
     private readonly LocalHueApi hueApi;
@@ -46,7 +46,7 @@ public sealed class HueEntertainment : IDisposable
 
         this.credentials = credentials;
 
-        entertainmentConfiguration = entertainmentConfigurationId;
+        EntertainmentConfiguration = entertainmentConfigurationId;
         entConfigBytes = GetGuidPayloadBytes(entertainmentConfigurationId);
 
         hueApi = new(bridgeIp, credentials);
@@ -79,7 +79,7 @@ public sealed class HueEntertainment : IDisposable
     }
     private async Task InternalConnectAsync()
     {
-        await hueApi.UpdateEntertainmentConfigurationActionAsync(entertainmentConfiguration, "start");
+        await hueApi.UpdateEntertainmentConfigurationActionAsync(EntertainmentConfiguration, "start");
 
         BasicTlsPskIdentity pskIdentity = new(credentials.AppKey, HexConverter.DecodeHex(credentials.ClientKey));
 
@@ -141,7 +141,7 @@ public sealed class HueEntertainment : IDisposable
     private void Send(byte[] data)
     {
         if (!Connected) // We should be connected as long as dispose isn't called
-            throw new HueEntertainmentException("Entertainment API diposed.");
+            throw new HueEntertainmentException("Entertainment API disposed.");
 
         const int offset = 0;
         int length = data.Length;

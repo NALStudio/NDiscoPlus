@@ -3,13 +3,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.PhilipsHue.Api.Models.Responses.Entertainment;
 
 public class HueSegmentReference
 {
-    public HueSegmentReference(HueResourceIdentifier service, int index)
+    [JsonConstructor]
+    internal HueSegmentReference(HueResourceIdentifier service, int index)
     {
         Service = service;
         Index = index;

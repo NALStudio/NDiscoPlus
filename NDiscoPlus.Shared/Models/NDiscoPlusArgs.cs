@@ -31,7 +31,7 @@ public class NDiscoPlusArgs
     public EffectConfig Effects { get; }
     public ImmutableArray<LightRecord> Lights { get; }
 
-    public bool AllowHDR { get; init; } = false;
+    public bool AllowHDR { get; init; } = true;
     /// <summary>
     /// <para>If <see langword="null"/>, use a random default color palette.</para>
     /// </summary>

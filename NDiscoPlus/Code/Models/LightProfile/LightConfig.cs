@@ -1,8 +1,9 @@
 ﻿using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Models;
+using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.Code.Models.LightProfile;
-public class LightConfig
+public sealed class LightConfig
 {
     public Channel Channel { get; set; } = LightRecord.Default.Channel;
     public double Brightness { get; set; } = LightRecord.Default.Brightness;

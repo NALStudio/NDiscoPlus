@@ -1,0 +1,183 @@
+﻿@using NDiscoPlus.Code.LightHandlers
+@using NDiscoPlus.Code.LightHandlers.Hue
+@using NDiscoPlus.Components.Elements.Dialogs
+@using NDiscoPlus.PhilipsHue.Api.HueApi
+@using NDiscoPlus.PhilipsHue.Api.Models.RequestBuilders
+@using NDiscoPlus.PhilipsHue.Api.Models.Responses.Entertainment
+@using System.Collections.Immutable
+@using NDiscoPlus.PhilipsHue.Api.Models.Responses.Lights
+@using NDiscoPlus.Shared.Models
+
+@implements IDisposable
+
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudStack>
+    <MudSelect T="Guid?"
+               Value="@(Config.EntertainmentConfiguration)"
+               ValueChanged="SetEntertainmentConfiguration"
+               Label="Entertainment Area"
+               Placeholder="Select Entertainment Area"
+               ToStringFunc="GetEntertainmentConfigurationName"
+               Clearable="true"
+               Variant="Variant.Outlined">
+        @foreach ((Guid id, _) in entertainmentConfigurationNames.OrderBy(static c => c.Value))
+        {
+            <MudSelectItem T="Guid?" Value="@id" />
+        }
+    </MudSelect>
+
+    @if (loadErrorsTask?.IsCompleted == true)
+    {
+        @if (loadErrorsTask.Result.Failed) {
+            foreach (string error in loadErrorsTask.Result.Errors)
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Filled">@error</MudAlert>
+            }
+        }
+        else
+        {
+            <MudButton Disabled="@isSettingLightPositions" Variant="Variant.Filled" OnClick="SetCustomHueLightPositions">Set custom Hue light positions</MudButton>
+        }
+    }
+</MudStack>
+
+@code {
+    [Parameter]
+    public required HueLightHandlerConfig Config { get; init; }
+
+    [Parameter]
+    public required Action ConfigHasChanged { get; init; }
+
+    private LocalHueApi? hueApi;
+    private ImmutableDictionary<Guid, string> entertainmentConfigurationNames = ImmutableDictionary<Guid, string>.Empty;
+
+    private Task<(bool Failed, ImmutableArray<string> Errors)>? loadErrorsTask = null;
+
+    private bool isSettingLightPositions = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        hueApi = new(Config.BridgeIP!, Config.BridgeCredentials!.Value);
+        await LoadEntertainmentConfigurationsAsync();
+    }
+
+    private async Task LoadEntertainmentConfigurationsAsync()
+    {
+        ReloadErrors();
+
+        entertainmentConfigurationNames = (await hueApi!.GetEntertainmentConfigurationsAsync()).ToImmutableDictionary(key => key.Id, value => value.Metadata.Name);
+        StateHasChanged();
+    }
+
+    private string? GetEntertainmentConfigurationName(Guid? entertainmentConfiguration)
+    {
+        if (entertainmentConfiguration is not Guid id)
+            return null;
+
+        if (entertainmentConfigurationNames.TryGetValue(id, out string? name))
+            return name;
+        else
+            return id.ToString();
+    }
+
+    private void SetEntertainmentConfiguration(Guid? config)
+    {
+        Config.EntertainmentConfiguration = config;
+        ConfigHasChanged();
+        ReloadErrors();
+    }
+
+    private void ReloadErrors()
+    {
+        Task<(bool, ImmutableArray<string>)> loadErrorsTask = ReloadErrorsAndUpdateState();
+
+        if (this.loadErrorsTask?.IsCompleted != false)
+            this.loadErrorsTask = loadErrorsTask;
+        else
+            this.loadErrorsTask = CustomContinueWith(this.loadErrorsTask, loadErrorsTask);
+    }
+
+    private async Task<T> CustomContinueWith<T>(Task<T> oldTask, Task<T> newTask)
+    {
+        _ = await oldTask;
+        return await newTask;
+    }
+
+    private async Task<(bool Failed, ImmutableArray<string> Errors)> ReloadErrorsAndUpdateState()
+    {
+        var output = await InternalReloadErrors();
+        StateHasChanged();
+        return output;
+    }
+
+    private async Task<(bool Failed, ImmutableArray<string> Errors)> InternalReloadErrors()
+    {
+        ErrorMessageCollector errors = new();
+        bool success = await Config.CreateLightHandler().ValidateConfig(errors);
+        ImmutableArray<string> errorMessages = errors.Collect().ToImmutableArray();
+        return (!success, errorMessages);
+    }
+
+    private async IAsyncEnumerable<SetCustomHueLightPositionsDialog.HueService> SetCustomHueLightPositionsBuildServices(HueEntertainmentConfiguration entConfig)
+    {
+        foreach (HueServiceLocation location in entConfig.Locations.ServiceLocations)
+        {
+            HueLight? light = null;
+            if (location.Service.ResourceType.IsEntertainmentService)
+            {
+                HueEntertainmentService? service = await hueApi!.GetEntertainmentService(location.Service.ResourceId);
+                if (service?.RendererReference?.ResourceType.IsLight == true)
+                    light = await hueApi.GetLightAsync(service.RendererReference.ResourceId);
+            }
+
+            yield return new SetCustomHueLightPositionsDialog.HueService()
+            {
+                Id = location.Service,
+                LightName = light?.Metadata.Name ?? location.Service.ResourceId.ToString(),
+                Position = location.Positions.First()
+            };
+        }
+    }
+
+    private async Task SetCustomHueLightPositions()
+    {
+        isSettingLightPositions = true;
+        StateHasChanged();
+
+        Guid entConfigId = Config.EntertainmentConfiguration ?? throw new InvalidOperationException("No entertainment configuration selected.");
+        HueEntertainmentConfiguration? entConfig = await hueApi!.TryGetEntertainmentConfigurationAsync(entConfigId);
+        if (entConfig is null)
+        {
+            Snackbar.Add("Cannot Set Light Positions: Invalid entertainment configuration.", Severity.Error);
+            return;
+        }
+
+        List<SetCustomHueLightPositionsDialog.HueService> services = new();
+        await foreach (SetCustomHueLightPositionsDialog.HueService service in SetCustomHueLightPositionsBuildServices(entConfig))
+            services.Add(service);
+
+        DialogParameters<SetCustomHueLightPositionsDialog> parameters = new()
+        {
+            { x => x.Services, services.OrderBy(static s => s.LightName).ToImmutableArray() }
+        };
+
+        var dialog = await DialogService.ShowAsync<SetCustomHueLightPositionsDialog>("Set custom Hue light positions", parameters);
+        var result = await dialog.Result;
+
+        if (result?.Canceled == false)
+        {
+            HueEntertainmentConfigurationRequestBuilder request = (HueEntertainmentConfigurationRequestBuilder)result.Data!;
+            await hueApi!.UpdateEntertainmentConfigurationAsync(entConfig.Id, request);
+        }
+
+        isSettingLightPositions = false;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        hueApi?.Dispose();
+    }
+}

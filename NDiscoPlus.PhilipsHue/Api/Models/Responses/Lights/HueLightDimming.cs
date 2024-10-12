@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 namespace NDiscoPlus.PhilipsHue.Api.Models.Responses.Lights;
 public class HueLightDimming
 {
+    [JsonConstructor]
     internal HueLightDimming(double brightness, double minDimLevel)
     {
         Brightness = brightness;

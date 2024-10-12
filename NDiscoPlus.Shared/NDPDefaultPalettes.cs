@@ -50,6 +50,6 @@ public static class NDPDefaultPalettes
         if (index < SRGB.Length)
             return SRGB[index];
         else
-            return HDR[index];
+            return HDR[index - SRGB.Length];
     }
 }

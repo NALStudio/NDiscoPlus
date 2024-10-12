@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 namespace NDiscoPlus.PhilipsHue.Api.Models.Responses.Entertainment;
 public class HueServiceLocation
 {
+    [JsonConstructor]
     internal HueServiceLocation(HueResourceIdentifier service, ImmutableArray<HuePosition> positions, double equalizationFactor)
     {
         Service = service;

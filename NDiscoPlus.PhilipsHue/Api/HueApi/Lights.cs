@@ -12,6 +12,7 @@ namespace NDiscoPlus.PhilipsHue.Api.HueApi;
 public partial class LocalHueApi
 {
     public async Task<IList<HueLight>> GetLightsAsync() => await GetAsync<ImmutableArray<HueLight>>(Endpoints.Lights);
-    public async Task<HueLight?> GetLightAsync(Guid id) => await GetSingleOrDefaultAsync<HueLight>(Endpoints.Light(id));
+    public async Task<HueLight> GetLightAsync(Guid id) => await GetSingleAsync<HueLight>(Endpoints.Light(id));
+    public async Task<HueLight?> TryGetLightAsync(Guid id) => await TryGetSingleAsync<HueLight>(Endpoints.Light(id));
     public async Task UpdateLightAsync(Guid id, HueLightRequestBuilder request) => await PutAsync(Endpoints.Light(id), request);
 }

@@ -1,11 +1,83 @@
-﻿@using NDiscoPlus.Code.LightHandlers.Hue
+﻿@using NDiscoPlus.Code.Constants
+@using NDiscoPlus.Code.LightHandlers.Hue
+@using NDiscoPlus.Code.NDPIcons
+@using NDiscoPlus.PhilipsHue.Authentication
+@using NDiscoPlus.PhilipsHue.Authentication.Models
 
-<h3>HueLightHandlerConfigEditorPressBridge</h3>
+@implements IDisposable
+
+<MudPaper Class="mud-theme-primary" Elevation="3">
+    <MudStack Style="height:512px" AlignItems="AlignItems.Center" Justify="Justify.Center">
+        <MudIcon Class="pulse" Icon="@(HueIcons.BridgeV2)" Style="font-size:5rem" />
+        <MudText Typo="Typo.caption">Press Hue Link Button</MudText>
+    </MudStack>
+</MudPaper>
+
+<style>
+    .pulse {
+      animation: pulse 1s infinite ease-in-out alternate;
+    }
+    @@keyframes pulse {
+      from { transform: scale(0.6); }
+      to { transform: scale(1.0); }
+    }
+</style>
 
 @code {
-    [CascadingParameter]
+    [Parameter]
     public required HueLightHandlerConfig Config { get; init; }
 
-    [CascadingParameter]
+    [Parameter]
     public required Action ConfigHasChanged { get; init; }
+
+    private PeriodicTimer? loginTimer;
+    private HueAuthentication? authentication;
+
+    private static readonly TimeSpan loginDelay = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan loginPeriod = loginDelay;
+
+    protected override void OnInitialized()
+    {
+        loginTimer = new(loginPeriod);
+        authentication = new(Config.BridgeIP!);
+
+        LoginLoop();
+    }
+
+    private async void LoginLoop()
+    {
+        await Task.Delay(loginDelay);
+
+        while (await loginTimer!.WaitForNextTickAsync())
+        {
+            HueCredentials? credentials = await TryLogin(authentication!);
+            if (credentials.HasValue)
+            {
+                Config.BridgeCredentials = credentials;
+                loginTimer.Dispose();
+                ConfigHasChanged();
+            }
+        }
+    }
+
+    private static async Task<HueCredentials?> TryLogin(HueAuthentication authentication)
+    {
+        HueCredentials? credentials;
+        try
+        {
+            credentials = await authentication.Authenticate(appName: NDPConstants.HueAppName, instanceName: NDPConstants.HueInstanceName);
+        }
+        catch (HueLinkButtonNotPressedException)
+        {
+            credentials = null;
+        }
+
+        return credentials;
+    }
+
+    public void Dispose()
+    {
+        loginTimer?.Dispose();
+        authentication?.Dispose();
+    }
 }

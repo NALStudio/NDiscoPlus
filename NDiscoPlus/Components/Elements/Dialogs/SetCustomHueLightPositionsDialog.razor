@@ -1,0 +1,64 @@
+﻿@using System.Collections.Immutable
+@using NDiscoPlus.PhilipsHue.Api.Models.RequestBuilders
+@using NDiscoPlus.PhilipsHue.Api.Models.Responses.Generic
+@using NDiscoPlus.Shared.Models
+<MudDialog>
+    <DialogContent>
+        @foreach (HueService service in Services)
+        {
+            <MudStack Row>
+                <MudText>@(service.LightName ?? service.Id.ResourceId.ToString())</MudText>
+                <MudNumericField T="double" Label="X" Value="@(service.Position.X)" ValueChanged="@(value => SetX(service, value))" Min="-1d" Max="1d" HideSpinButtons />
+                <MudNumericField T="double" Label="Y" Value="@(service.Position.Y)" ValueChanged="@(value => SetY(service, value))" Min="-1d" Max="1d" HideSpinButtons />
+                <MudNumericField T="double" Label="Z" Value="@(service.Position.Z)" ValueChanged="@(value => SetZ(service, value))" Min="-1d" Max="1d" HideSpinButtons />
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Submit">Update</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private MudDialogInstance? MudDialog { get; set; }
+
+    [Parameter]
+    public ImmutableArray<HueService> Services { get; set; }
+
+    private void Submit() => MudDialog!.Close(BuildRequest());
+    private void Cancel() => MudDialog!.Cancel();
+
+    public class HueService
+    {
+        public required HueResourceIdentifier Id { get; init; }
+        public required string? LightName { get; init; }
+        public required HuePosition Position { get; set; }
+    }
+
+    private HueEntertainmentConfigurationRequestBuilder BuildRequest()
+    {
+        HueEntertainmentConfigurationRequestBuilder builder = new();
+        foreach (HueService service in Services)
+            builder.AddLocation(service.Id, new HuePosition(service.Position.X, service.Position.Y, service.Position.Z));
+
+        return builder;
+    }
+
+    private void SetX(HueService service, double x)
+    {
+        service.Position = new HuePosition(x, service.Position.Y, service.Position.Z);
+        StateHasChanged();
+    }
+    private void SetY(HueService service, double y)
+    {
+        service.Position = new HuePosition(service.Position.X, y, service.Position.Z);
+        StateHasChanged();
+    }
+    private void SetZ(HueService service, double z)
+    {
+        service.Position = new HuePosition(service.Position.X, service.Position.Y, z);
+        StateHasChanged();
+    }
+}

@@ -13,10 +13,11 @@ namespace NDiscoPlus.PhilipsHue.Api.Models.Responses.Generic;
 /// </summary>
 public sealed class HueResourceIdentifier
 {
-    internal HueResourceIdentifier(Guid resourceId, string resourceType)
+    [JsonConstructor]
+    internal HueResourceIdentifier(Guid resourceId, HueResourceType resourceType)
     {
         ResourceId = resourceId;
-        ResourceType = new HueResourceType(resourceType);
+        ResourceType = resourceType;
     }
 
     [JsonPropertyName("rid")]

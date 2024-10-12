@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 namespace NDiscoPlus.PhilipsHue.Api.Models.Responses.Entertainment;
 public class HueEntertainmentChannelLocations
 {
+    [JsonConstructor]
     internal HueEntertainmentChannelLocations(ImmutableArray<HueServiceLocation> serviceLocations)
     {
         ServiceLocations = serviceLocations;

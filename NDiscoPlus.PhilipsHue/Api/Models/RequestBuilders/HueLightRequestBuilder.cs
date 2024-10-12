@@ -2,6 +2,7 @@
 using NDiscoPlus.PhilipsHue.Api.Models.Responses.Generic;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -12,8 +13,10 @@ public class HueLightRequestBuilder : HueRequestBuilder
     // TODO: Implement archetype, function
     public HueLightRequestBuilder WithMetadata(string? name = null)
     {
-        using PropertyBuilder pb = BuildProperty("metadata");
-        pb.AddPropertyIfNotNull("name", name);
+        using (PropertyBuilder pb = BuildProperty("metadata"))
+        {
+            pb.AddPropertyIfNotNull("name", name);
+        }
 
         return this;
     }
@@ -38,15 +41,24 @@ public class HueLightRequestBuilder : HueRequestBuilder
 
     public HueLightRequestBuilder WithColor(HueXY color)
     {
-        AddProperty("color", color.ToObjectDictionary());
+        AddProperty("color", color.ToRequestObject());
         return this;
     }
 
     public HueLightRequestBuilder WithDynamics(int? duration = null, double? speed = null)
     {
-        using PropertyBuilder pb = BuildProperty("dynamics");
-        pb.AddPropertyIfNotNull("duration", duration);
-        pb.AddPropertyIfNotNull("speed", speed);
+        using (PropertyBuilder pb = BuildProperty("dynamics"))
+        {
+            pb.AddPropertyIfNotNull("duration", duration);
+            pb.AddPropertyIfNotNull("speed", speed);
+        }
+
+        return this;
+    }
+
+    public HueLightRequestBuilder WithAlert()
+    {
+        AddProperty("alert", "action", "breathe");
 
         return this;
     }
@@ -84,12 +96,17 @@ public class HueLightRequestBuilder : HueRequestBuilder
 
     private HueLightRequestBuilder InternalWithSignaling(string signal, int durationMs, params HueXY[] colors)
     {
-        using PropertyBuilder pb = BuildProperty("signaling");
-        pb.AddProperty("signal", signal);
-        pb.AddProperty("duration", durationMs);
+        using (PropertyBuilder pb = BuildProperty("signaling"))
+        {
+            pb.AddProperty("signal", signal);
+            pb.AddProperty("duration", durationMs);
 
-        if (colors.Length > 0)
-            pb.AddProperty("colors", colors);
+            if (colors.Length > 0)
+            {
+                Dictionary<string, object>[] colorDictionaries = colors.Select(static c => c.ToRequestObject()).ToArray();
+                pb.AddProperty("colors", colorDictionaries);
+            }
+        }
 
         return this;
     }

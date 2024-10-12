@@ -7,21 +7,27 @@ using System.Linq;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-using static NDiscoPlus.Code.Models.LightProfile.LightProfile;
 
 namespace NDiscoPlus.Code.Models.LightProfile;
-public class SerializableLightProfile
+public sealed class SerializableLightProfile
 {
+    // LightId cannot be serialized as a key, so we make a wrapper struct for both values instead.
+    public readonly record struct LightConfigRecord(LightId Light, LightConfig Config);
+
     public string Name { get; }
     public ImmutableArray<LightHandlerConfig> Handlers { get; }
-    public ImmutableDictionary<LightId, LightConfig> LightConfigurationOverrides { get; }
+
+    // Use ImmutableList instead of ImmutableArray so that JsonSerializer can handle null correctly
+    // Use JsonPropertyName so that the old dictionary value of LightConfigurationOverrides isn't loaded
+    [JsonPropertyName("LightConfigurationOverrides_V2")]
+    public ImmutableList<LightConfigRecord> LightConfigurationOverrides { get; }
 
     [JsonConstructor]
-    private SerializableLightProfile(string name, ImmutableArray<LightHandlerConfig> handlers, ImmutableDictionary<LightId, LightConfig>? lightConfigurationOverrides)
+    private SerializableLightProfile(string name, ImmutableArray<LightHandlerConfig> handlers, ImmutableList<LightConfigRecord>? lightConfigurationOverrides)
     {
         Name = name;
         Handlers = handlers;
-        LightConfigurationOverrides = lightConfigurationOverrides ?? ImmutableDictionary<LightId, LightConfig>.Empty; // empty dictionary for backwards compat
+        LightConfigurationOverrides = lightConfigurationOverrides ?? ImmutableList<LightConfigRecord>.Empty;
     }
 
     public static SerializableLightProfile Construct(LightProfile profile)
@@ -31,7 +37,7 @@ public class SerializableLightProfile
         return new(
             profile.Name,
             handlers: handlers,
-            lightConfigurationOverrides: profile.LightConfigurationOverrides.ToImmutableDictionary()
+            lightConfigurationOverrides: profile.LightConfigurationOverrides.Select(static x => new LightConfigRecord(x.Key, x.Value)).ToImmutableList()
         );
     }
 
@@ -40,7 +46,7 @@ public class SerializableLightProfile
         return new LightProfile(
             name: profile.Name,
             handlers: profile.Handlers.Select(h => h.CreateLightHandler()),
-            lightConfigurationOverrides: profile.LightConfigurationOverrides
+            lightConfigurationOverrides: profile.LightConfigurationOverrides.Select(static x => new KeyValuePair<LightId, LightConfig>(x.Light, x.Config))
         );
     }
 }

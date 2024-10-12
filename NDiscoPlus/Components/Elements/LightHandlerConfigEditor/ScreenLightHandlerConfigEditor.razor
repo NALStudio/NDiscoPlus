@@ -24,15 +24,28 @@
 
     <MudDivider />
 
+    <MudTooltip Text="How lights should be positioned relative to the room.">
+        <MudText>Positioning</MudText>
+    </MudTooltip>
+    <MudStack Row>
+        <MudNumericField @bind-Value=@(Config.LightMetrics.X) Label="X" HelperText="@XYZHelperText(Config.LightMetrics.X, "right", "left")" Variant="Variant.Outlined" Max="1d" Min="-1d" Step="0.05d" />
+        <MudNumericField @bind-Value=@(Config.LightMetrics.Y) Label="Y" HelperText="@XYZHelperText(Config.LightMetrics.Y, "forwards", "backwards")" Variant="Variant.Outlined" Max="1d" Min="-1d" Step="0.05d" />
+        <MudNumericField @bind-Value=@(Config.LightMetrics.Z) Label="Z" HelperText="@XYZHelperText(Config.LightMetrics.Z, "up", "down")" Variant="Variant.Outlined" Max="1d" Min="-1d" Step="0.05d" />
+    </MudStack>
+    <MudStack Row>
+        <MudNumericField ReadOnly Value="@(Config.LightMetrics.Width)" Label="Width" Variant="Variant.Outlined" />
+        <MudNumericField @bind-Value=@(Config.LightMetrics.Height) Label="Height" Variant="Variant.Outlined" Max="1d" Min="-1d" Step="0.05d" />
+    </MudStack>
+
+    <MudDivider />
+
     <MudTooltip Text="Aspect ratio affects the positioning of screen lights relative to the room.">
         <MudText>Aspect Ratio</MudText>
     </MudTooltip>
-    <div>
     <MudStack Row="true">
-        <MudNumericField @bind-Value=Config.AspectRatioHorizontal Label="Horizontal" HelperText="@(Config.AspectRatio.ToString())" Variant="Variant.Outlined" Max="32" Min="1" />
-        <MudNumericField @bind-Value=Config.AspectRatioVertical Label="Vertical" Variant="Variant.Outlined" Max="32" Min="1" />
+        <MudNumericField @bind-Value=@(Config.LightMetrics.AspectRatioX) Label="Horizontal" HelperText="@(Config.LightMetrics.AspectRatio.ToString())" Variant="Variant.Outlined" Max="32" Min="1" />
+        <MudNumericField @bind-Value=@(Config.LightMetrics.AspectRatioY) Label="Vertical" Variant="Variant.Outlined" Max="32" Min="1" />
     </MudStack>
-    </div>
 
     <MudDivider />
 
@@ -58,9 +71,9 @@
                             Width="@(canvasSize.Width)"
                             Height="@(canvasSize.Height)"
                             Style="border-radius:16px; overflow:hidden;"/>
-            <MudText>@Config.AspectRatioVertical</MudText>
+            <MudText>@(Config.LightMetrics.AspectRatioY)</MudText>
         </MudStack>
-        <MudText Style=@($"width:{canvasSize.Width}px;") Align="Align.Center">@(Config.AspectRatioHorizontal)</MudText>
+        <MudText Style=@($"width:{canvasSize.Width}px;") Align="Align.Center">@(Config.LightMetrics.AspectRatioX)</MudText>
     </div>
 </MudStack>
 
@@ -92,6 +105,19 @@
         }
 
         return _preview.Value.Colors;
+    }
+
+    private string XYZHelperText(double value, string positive, string negative)
+    {
+        string suffix;
+        if (value < 0)
+            suffix = negative;
+        else if (value > 0)
+            suffix = positive;
+        else
+            suffix = string.Empty;
+
+        return $"{Math.Abs(value)} {suffix}";
     }
 
     private static IEnumerable<NDPColor> ConstructColors(int count, bool HDR)
@@ -137,15 +163,16 @@
 
         double maxAspect = maxWidth / ((double)maxHeight);
 
-        if (Config.AspectRatio > maxAspect)
+        double aspectRatio = Config.LightMetrics.AspectRatio;
+        if (aspectRatio > maxAspect)
         {
             // Width is limiting factor
-            return (maxWidth, RoundToInt(Config.InverseAspectRatio * maxWidth));
+            return (maxWidth, RoundToInt((1 / aspectRatio) * maxWidth));
         }
         else
         {
             // Height is limiting factor
-            return (RoundToInt(Config.AspectRatio * maxHeight), maxHeight);
+            return (RoundToInt(aspectRatio * maxHeight), maxHeight);
         }
     }
 

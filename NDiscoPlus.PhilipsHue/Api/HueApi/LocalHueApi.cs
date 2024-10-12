@@ -1,5 +1,6 @@
 ﻿using NDiscoPlus.PhilipsHue.Api.Constants;
 using NDiscoPlus.PhilipsHue.Authentication.Models;
+using NDiscoPlus.PhilipsHue.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,19 +12,13 @@ public partial class LocalHueApi : IDisposable
 {
     private EndpointsV2 Endpoints { get; }
 
-    private readonly HueCredentials credentials;
     private readonly HttpClient http;
 
     public LocalHueApi(string bridgeIp, HueCredentials credentials)
     {
-        this.credentials = credentials;
-
         Endpoints = new(bridgeIp);
 
-        http = new()
-        {
-            BaseAddress = new Uri(Endpoints.BaseAddress)
-        };
+        http = HueHttpClientProvider.CreateHttp(Endpoints.BridgeAddress);
         http.DefaultRequestHeaders.Add("hue-application-key", credentials.AppKey);
     }
 

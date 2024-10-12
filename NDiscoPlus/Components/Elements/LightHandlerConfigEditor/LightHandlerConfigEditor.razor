@@ -6,11 +6,15 @@
     [Parameter, EditorRequired]
     public required T Config { get; set; }
 
-    public static Dictionary<string, object> CreateParametersDictionary(LightHandlerConfig config)
+    [Parameter, EditorRequired]
+    public required Action SetCurrentProfileEdited { get; set; }
+
+    public static Dictionary<string, object> CreateParametersDictionary(LightHandlerConfig config, Action setCurrentProfileEdited)
     {
         return new()
         {
-            { nameof(Config), config }
+            { nameof(Config), config },
+            { nameof(SetCurrentProfileEdited), setCurrentProfileEdited }
         };
     }
 }

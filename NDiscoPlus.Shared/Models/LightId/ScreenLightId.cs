@@ -5,7 +5,7 @@ public class ScreenLightId : LightId
     public byte TotalLightCount { get; }
     public byte Index { get; }
 
-    public override string HumanReadableString => $"Screen Light (count: {TotalLightCount}, index: {Index})";
+    public override string HumanReadableString => $"Screen Light {Index}";
 
     public ScreenLightId(byte totalLightCount, byte index)
     {

@@ -1,40 +1,38 @@
 ﻿@using NDiscoPlus.Components.Elements.LightHandlerConfigEditor.HueLightHandlerConfigEditor.SubEditors
 @using NDiscoPlus.Code.LightHandlers.Hue
+@using System.Collections.Immutable
 
 @inherits LightHandlerConfigEditor<HueLightHandlerConfig>
 
-<CascadingValue Name="Config" Value="Config">
-    <CascadingValue Name="ConfigHasChanged" Value="@ConfigHasChanged">
-        @if (Config.BridgeIP is null)
-        {
-            <HueFindBridgesSubEditor />
-        }
-        else if (Config.BridgeCredentials is null)
-        {
-            <HuePressBridgeSubEditor />
-        }
-        else
-        {
-            if (configValid)
-            {
-                <HueBridgeLoggedInSubEditor />
-            }
-            else
-            {
-                <HueBridgeErrorSubEditor />
-            }
-        }
-    </CascadingValue>
-</CascadingValue>
+<DynamicComponent Type="@GetSubEditorType()" Parameters="@GetComponentParameters()" />
 
 @code {
-    bool configValid = true;
+    private ImmutableDictionary<string, object>? _cachedComponentParameters = null;
 
-    protected override async Task OnInitializedAsync()
+    private IDictionary<string, object> GetComponentParameters()
     {
-        configValid = await Config.CreateLightHandler().ValidateConfig(null);
-        StateHasChanged();
+        _cachedComponentParameters ??= new Dictionary<string, object>()
+        {
+            { "Config", Config },
+            { "ConfigHasChanged", ((Action)ConfigHasChanged) }
+        }.ToImmutableDictionary();
+
+        return _cachedComponentParameters;
     }
 
-    private void ConfigHasChanged() => this.StateHasChanged();
+    private Type GetSubEditorType()
+    {
+        if (Config.BridgeIP is null)
+            return typeof(HueFindBridgesSubEditor);
+        if (Config.BridgeCredentials is null)
+            return typeof(HuePressBridgeSubEditor);
+
+        return typeof(HueBridgeDefaultSubEditor);
+    }
+
+    private void ConfigHasChanged()
+    {
+        this.StateHasChanged();
+        SetCurrentProfileEdited();
+    }
 }

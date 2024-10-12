@@ -1,10 +1,18 @@
 ﻿using NDiscoPlus.PhilipsHue.Api.Models.Responses.Generic;
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.PhilipsHue.Api.Models.Responses;
 
-public abstract class HueResponse<T>
+internal sealed class HueResponse<T>
 {
-    public required ImmutableArray<HueError> Errors { get; init; }
-    public required T Data { get; init; }
+    public ImmutableArray<HueError> Errors { get; }
+    public T Data { get; }
+
+    [JsonConstructor]
+    internal HueResponse(ImmutableArray<HueError> errors, T data)
+    {
+        Errors = errors;
+        Data = data;
+    }
 }

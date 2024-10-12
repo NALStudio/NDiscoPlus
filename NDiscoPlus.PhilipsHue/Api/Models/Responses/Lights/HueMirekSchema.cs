@@ -8,6 +8,13 @@ using System.Threading.Tasks;
 namespace NDiscoPlus.PhilipsHue.Api.Models.Responses.Lights;
 public class HueMirekSchema
 {
+    [JsonConstructor]
+    internal HueMirekSchema(int mirekMinimum, int mirekMaximum)
+    {
+        MirekMinimum = mirekMinimum;
+        MirekMaximum = mirekMaximum;
+    }
+
     [JsonPropertyName("mirek_minimum")]
     public int MirekMinimum { get; }
 

@@ -3,12 +3,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.PhilipsHue.Api.Models.Responses.Lights;
 public class HueLightColor
 {
-    public HueLightColor(HueXY xY, HueGamut gamut)
+    [JsonConstructor]
+    internal HueLightColor(HueXY xY, HueGamut gamut)
     {
         XY = xY;
         Gamut = gamut;

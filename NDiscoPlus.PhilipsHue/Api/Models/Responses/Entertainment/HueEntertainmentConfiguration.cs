@@ -5,13 +5,15 @@ using System.Text.Json.Serialization;
 namespace NDiscoPlus.PhilipsHue.Api.Models.Responses.Entertainment;
 public class HueEntertainmentConfiguration
 {
-    internal HueEntertainmentConfiguration(Guid id, HueNameMetadata metadata, string configurationType, HueResourceIdentifier? activeStreamer, ImmutableArray<HueEntertainmentChannel> channels)
+    [JsonConstructor]
+    internal HueEntertainmentConfiguration(Guid id, HueNameMetadata metadata, string configurationType, HueResourceIdentifier? activeStreamer, ImmutableArray<HueEntertainmentChannel> channels, HueEntertainmentChannelLocations locations)
     {
         Id = id;
         Metadata = metadata;
         ConfigurationType = configurationType;
         ActiveStreamer = activeStreamer;
         Channels = channels;
+        Locations = locations;
     }
 
     public Guid Id { get; }
@@ -24,7 +26,7 @@ public class HueEntertainmentConfiguration
     public HueResourceIdentifier? ActiveStreamer { get; }
 
     public ImmutableArray<HueEntertainmentChannel> Channels { get; }
-    public ImmutableArray<HueEntertainmentChannelLocations> Locations { get; }
+    public HueEntertainmentChannelLocations Locations { get; }
 
     // TODO: Add missing functionality
 }

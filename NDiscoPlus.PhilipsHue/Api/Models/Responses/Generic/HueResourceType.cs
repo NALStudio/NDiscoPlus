@@ -13,6 +13,10 @@ public readonly partial record struct HueResourceType(string Type)
     public bool IsLight => Is("light");
     public bool IsButton => Is("button");
 
+    // Entertainment
+    public bool IsEntertainmentService => Is("entertainment");
+    public bool IsEntertainmentConfiguration => Is("entertainment_configuration");
+
     // Basic spaces
     public bool IsRoom => Is("room");
     public bool IsZone => Is("zone");

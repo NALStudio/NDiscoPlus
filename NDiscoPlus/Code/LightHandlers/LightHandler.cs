@@ -50,7 +50,7 @@ public abstract class LightHandler : IAsyncDisposable
             typeof(HueLightHandler),
             "Philips Hue",
             Icons.Material.Rounded.Lightbulb,
-            MudBlazor.Colors.Pink.Default
+            MudBlazor.Colors.Purple.Default
         )
     ];
     // Use FrozenDictionary as this is only instantiated once.

@@ -1,5 +1,6 @@
 ﻿using NDiscoPlus.PhilipsHue.Api.Constants;
 using NDiscoPlus.PhilipsHue.Authentication.Models;
+using NDiscoPlus.PhilipsHue.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace NDiscoPlus.PhilipsHue.Authentication;
-public class HueAuthentication
+public class HueAuthentication : IDisposable
 {
     private readonly EndpointsV1 endpoints;
     private readonly HttpClient http;
@@ -17,7 +18,7 @@ public class HueAuthentication
     public HueAuthentication(string bridgeIp)
     {
         endpoints = new(bridgeIp);
-        http = new();
+        http = HueHttpClientProvider.CreateHttp(endpoints.BridgeAddress);
     }
 
     public async Task<HueCredentials> Authenticate(string appName, string instanceName)
@@ -40,9 +41,10 @@ public class HueAuthentication
         if (!response.IsSuccessStatusCode)
             throw new HueAuthenticationException($"Request failed: {response.StatusCode}");
 
-        AuthenticationResponse? responseContent = await response.Content.ReadFromJsonAsync<AuthenticationResponse>();
+        AuthenticationResponse[]? responseContent = await response.Content.ReadFromJsonAsync<AuthenticationResponse[]>();
+        AuthenticationResponse? authResponse = responseContent?.Single();
 
-        if (responseContent?.Error is AuthenticationErrorResponse error)
+        if (authResponse?.Error is AuthenticationErrorResponse error)
         {
             if (error.Type == 101)
                 throw new HueLinkButtonNotPressedException(error.Description);
@@ -50,8 +52,11 @@ public class HueAuthentication
                 throw new HueAuthenticationException($"{error.Type}: {error.Description}");
         }
 
-        if (responseContent?.Success is not AuthenticationSuccessResponse success)
+        if (authResponse?.Success is not AuthenticationSuccessResponse success)
             throw new HueAuthenticationException("Could not deserialize response.");
+
+        if (success.ClientKey is null)
+            throw new HueAuthenticationException("No client key returned by bridge.");
 
         return new HueCredentials(
             AppKey: success.Username,
@@ -67,5 +72,11 @@ public class HueAuthentication
         const int maxLen = 19; // application name can be 20, device name only 19. I'll just limit all to 19 for simplicity
         if (name.Length > maxLen)
             throw new ArgumentException($"Name too long. Maximum character length: {maxLen}.", paramName);
+    }
+
+    public void Dispose()
+    {
+        http.Dispose();
+        GC.SuppressFinalize(this);
     }
 }
