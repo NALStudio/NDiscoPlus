@@ -1,0 +1,202 @@
+﻿@using NDiscoPlus.Shared.Models
+@using NDiscoPlus.Shared.Models.Color
+@using System.Diagnostics
+@inject IJSRuntime JSRuntime
+
+<BaseGradientCanvas Width="Width" Height="Height" Style="@Style" Colors="@GetColors()">
+<FragmentShader>
+<script id="GradientCanvas_vertex" type="x-shader/x-vertex">
+    #version 300 es
+
+    #line 15
+
+    in vec4 vertexPosition;
+
+    void main() {
+        gl_Position = vertexPosition;
+    }
+</script>
+
+<script id="GradientCanvas_fragment" type="x-shader/x-fragment">
+    #version 300 es
+
+    #line 23
+
+    #define LIGHT_COUNT %LIGHT_COUNT%
+    #define DITHERED %DITHERED%
+
+    precision highp float;
+
+    const float DITHER_NOISE_GRANULARITY = 0.5 / 255.0;
+
+    uniform vec2 canvasSize;
+    uniform vec4 lightColors[LIGHT_COUNT];
+
+    out vec4 fragColor;
+
+    float SRGBCompanding(float c)
+    {
+        if (c <= 0.0031308) {
+            return c * 12.92;
+        }
+        else {
+            return (1.055 * pow(c, 1. / 2.4)) - 0.055;
+        }
+    }
+
+    // xyY => XYZ
+    vec3 _xyY2XYZ(vec3 xyY) {
+        float x = xyY.x;
+        float y = xyY.y;
+        float z = 1. - x - y;
+
+        float Y = xyY.z;
+        float X = (Y / y) * x;
+        float Z = (Y / y) * z;
+
+        return vec3(X, Y, Z);
+    }
+
+    // xyY => sRGB
+    vec3 xyY2sRGB(vec3 xyY) {
+        vec3 xyz = _xyY2XYZ(xyY);
+
+        float r = (3.2406255 * xyz.x) + (-1.537208 * xyz.y) + (-0.4986286 * xyz.z);
+        float g = (-0.9689307 * xyz.x) + (1.8757561 * xyz.y) + (0.0415175 * xyz.z);
+        float b = (0.0557101 * xyz.x) + (-0.2040211 * xyz.y) + (1.0569959 * xyz.z);
+
+        r = SRGBCompanding(r);
+        g = SRGBCompanding(g);
+        b = SRGBCompanding(b);
+
+        return vec3(r, g, b);
+    }
+
+    float _ditherRandom(highp vec2 coords) {
+        return fract(sin(dot(coords.xy, vec2(12.9898,78.233))) * 43758.5453);
+    }
+
+    // https://shader-tutorial.dev/advanced/color-banding-dithering/
+    void Dither(in vec2 coord, inout vec3 rgb) {
+        float fragmentColor = mix(0.05, 0.35, 1.0 - coord.y);
+        rgb += mix(-DITHER_NOISE_GRANULARITY, DITHER_NOISE_GRANULARITY, _ditherRandom(coord));
+    }
+
+    // We assume list isn't sorted
+    void GetClosestPositions(in float pos, out int left, out int right) {
+        left = -1;
+        float leftDist = 1000.; // Use absurdly large initial value
+        right = -1;
+        float rightDist = 1000.;
+        for (int i = 0; i < LIGHT_COUNT; i++) {
+            float dist = lightColors[i].x - pos;
+            if (dist < 0.) {
+                // lightPosition < position, left
+                float absDist = -dist;
+                if (leftDist > absDist) {
+                    leftDist = absDist;
+                    left = i;
+                }
+            }
+            else {
+                // lightPosition >= position, right
+                if (rightDist > dist) {
+                    rightDist = dist;
+                    right = i;
+                }
+            }
+        }
+    }
+
+    vec3 Gradient(float pos) {
+        int leftIndex;
+        int rightIndex;
+        GetClosestPositions(pos, leftIndex, rightIndex);
+
+        if (leftIndex == -1) {
+            return lightColors[rightIndex].yzw;
+        }
+        if (rightIndex == -1) {
+            return lightColors[leftIndex].yzw;
+        }
+
+        vec4 leftVec = lightColors[leftIndex];
+        float leftPos = leftVec.x;
+        vec3 leftCol = leftVec.yzw;
+
+        vec4 rightVec = lightColors[rightIndex];
+        float rightPos = rightVec.x;
+        vec3 rightCol = rightVec.yzw;
+
+        // remap pos from [left, right] to [0, 1]
+        float t = (pos - leftPos) / (rightPos - leftPos);
+
+        return mix(leftCol, rightCol, t);
+    }
+
+    void main() {
+        vec2 coord = gl_FragCoord.xy / canvasSize;
+
+        vec3 color = Gradient(coord.x);
+        
+        vec3 rgbColor = xyY2sRGB(color);
+
+        if (DITHERED) {
+            Dither(coord, rgbColor);
+        }
+
+        fragColor = vec4(rgbColor, 1.);
+    }
+</script>
+</FragmentShader>
+</BaseGradientCanvas>
+
+@code {
+    public readonly record struct ColorPosition(double PosX, NDPColor Color);
+
+    [Parameter, EditorRequired]
+    public int Width { get; set; }
+
+    [Parameter, EditorRequired]
+    public int Height { get; set; }
+
+    [Parameter]
+    public string? Style { get; set; }
+
+    /// <summary>
+    /// Any amount of colors to render.
+    /// </summary>
+    /// <remarks>
+    /// Do not change the color count often as it forces a rebuild of the entire shader pipeline.
+    /// </remarks>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ColorPosition>? Colors { get; set; }
+
+    private BaseGradientCanvas.GradientColors GetColors()
+    {
+        const int ColorComponentCount = 4;
+
+        IReadOnlyList<ColorPosition>? gradientColors = Colors;
+        // if (gradientColors?.Count < 0) // If colors count is less than 1, our shader crashes. Use a default black value so this isn't the case.
+        //     gradientColors = new GradientColor[] { new GradientColor(0d, ColorGamut.sRGB.GamutBlack()) };
+
+        int colorsCount = gradientColors!.Count;
+
+        double[] colorsArr = new double[colorsCount * ColorComponentCount];
+        Span<double> colors = colorsArr.AsSpan();
+
+        for (int colorIndex = 0; colorIndex < colorsCount; colorIndex++)
+        {
+            ColorPosition color = gradientColors[colorIndex];
+            int index = colorIndex * ColorComponentCount;
+            colors[index] = color.PosX;
+            colors[index + 1] = color.Color.X;
+            colors[index + 2] = color.Color.Y;
+            colors[index + 3] = color.Color.Brightness;
+        }
+
+        if (colorsCount < 1)
+            throw new InvalidOperationException("Colors count cannot be 0. We check and throw here instead of letting the shader crash.");
+        return new BaseGradientCanvas.GradientColors(colorsCount, BaseGradientCanvas.UniformVector.vec4, colorsArr);
+    }
+}

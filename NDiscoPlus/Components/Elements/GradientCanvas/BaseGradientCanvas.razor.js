@@ -13,9 +13,10 @@ const vertexData = new Float32Array(vertices.flat());
  * @param {number} width 
  * @param {number} height
  * @param {bool} useHDR
+ * @param {number} uniformVectorType 
  * @param {Map<String, String>} fragmentShaderArgs 
  */
-export function createShaderPipeline(divElementReference, width, height, useHDR, fragmentShaderArgs) {
+export function createShaderPipeline(divElementReference, width, height, useHDR, uniformVectorType, fragmentShaderArgs) {
     if (divElementReference === null) {
         // Sometimes this is called when the website has already started unloading.
         // In this case, C#-land still has the element reference, but JS-topia doesn't already.
@@ -32,17 +33,18 @@ export function createShaderPipeline(divElementReference, width, height, useHDR,
     }
     const fragmentShaderSource = fragmentShaderSourceBuilder;
 
-    return createProgram(canvas, width, height, useHDR, vertexShaderSource, fragmentShaderSource);
+    return createProgram(canvas, uniformVectorType, width, height, useHDR, vertexShaderSource, fragmentShaderSource);
 }
 
 /**
  * @param {HTMLCanvasElement} canvas
+ * @param {number} uniformVectorType 
  * @param {number} width 
  * @param {number} height 
  * @param {String} vertexCode
  * @param {String} fragmentCode
  */
-function createProgram(canvas, width, height, useHDR, vertexCode, fragmentCode) {
+function createProgram(canvas, uniformVectorType, width, height, useHDR, vertexCode, fragmentCode) {
     const gl = canvas.getContext("webgl2");
     if (!gl) throw "WebGL2 not supported";
 
@@ -80,7 +82,7 @@ function createProgram(canvas, width, height, useHDR, vertexCode, fragmentCode) 
     const canvasSizeUniform = gl.getUniformLocation(program, "canvasSize");
     gl.uniform2f(canvasSizeUniform, canvas.width, canvas.height);
 
-    return new WebGL2Program(gl, program);
+    return new WebGL2Program(gl, program, uniformVectorType);
 }
 
 /**
@@ -89,9 +91,21 @@ function createProgram(canvas, width, height, useHDR, vertexCode, fragmentCode) 
 function renderProgram(p) {
     if (p.colors === null) throw "No colors set.";
 
-    p.gl.uniform3fv(p.lightColorsUnion, p.colors);
+    // Set colors
+    if (p.uniformVectorType == 3) {
+        p.gl.uniform3fv(p.lightColorsUniformLocation, p.colors);
+    }
+    else if (p.uniformVectorType == 4) {
+        p.gl.uniform4fv(p.lightColorsUniformLocation, p.colors);
+    }
+    else {
+        throw `Invalid uniform vector type: '${uniformVectorType}'`
+    }
+
+    // Render
     p.gl.drawArrays(p.gl.TRIANGLE_STRIP, 0, vertices.length);
 
+    // Re-queue for next frame
     if (p.rendering) {
         requestAnimationFrame(() => renderProgram(p));
     }
@@ -107,12 +121,14 @@ class WebGL2Program {
     /**
      * @param {WebGL2RenderingContext} gl
      * @param {WebGL2Program} program
+     * @param {number} uniformVectorType 
      */
-    constructor(gl, program) {
+    constructor(gl, program, uniformVectorType) {
         this.gl = gl;
         this.program = program;
 
-        this.lightColorsUnion = gl.getUniformLocation(program, "lightColors");
+        this.lightColorsUniformLocation = gl.getUniformLocation(program, "lightColors");
+        this.uniformVectorType = uniformVectorType
 
         this.rendering = false;
         this.colors = null;

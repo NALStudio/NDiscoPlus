@@ -16,6 +16,8 @@ using System.Diagnostics.CodeAnalysis;
 namespace NDiscoPlus.Components.Elements;
 public partial class LightPositionViewer : IDisposable
 {
+    public delegate void OnLightSectedCallback(string? objectType, LightId? light);
+
     private class LightSignal(string color)
     {
         public string Color { get; set; } = color;
@@ -45,6 +47,8 @@ public partial class LightPositionViewer : IDisposable
     }
 
     private readonly Dictionary<LightId, LightData> lightDatas;
+    private Dictionary<Guid, string> objectTypes;
+    private Mesh? monitorMesh;
 
     public LightPositionViewer()
     {
@@ -72,7 +76,7 @@ public partial class LightPositionViewer : IDisposable
         lightDatas = new();
 
         Scene = new();
-        BuildScene(Scene);
+        objectTypes = new SceneBuilder(Scene).Build();
     }
 
     public bool Initialized { get; private set; } = false;
@@ -80,7 +84,7 @@ public partial class LightPositionViewer : IDisposable
 
     public Task WaitUntilInitializedAsync() => initializedTaskSource.Task;
 
-    public event Action<LightId?>? OnLightSelected;
+    public event OnLightSectedCallback? OnLightSelected;
 
     protected override void OnAfterRender(bool firstRender)
     {
@@ -111,7 +115,8 @@ public partial class LightPositionViewer : IDisposable
             }
         }
 
-        OnLightSelected?.Invoke(light);
+        string? objectType = objectTypes.GetValueOrDefault(e.UUID);
+        OnLightSelected?.Invoke(objectType, light);
     }
 
     public async Task ClearAsync()
@@ -120,11 +125,67 @@ public partial class LightPositionViewer : IDisposable
 
         viewer.Scene.Children.Clear();
         lightDatas.Clear();
+        objectTypes.Clear();
 
-        BuildScene(Scene);
+        objectTypes = new SceneBuilder(Scene).Build();
+
+        if (monitorMesh is not null) // add monitor back (was removed during clear)
+            AddMonitorMesh(monitorMesh);
 
         await viewer.UpdateScene();
     }
+
+    public async Task RemoveMonitorRect()
+    {
+        ThrowIfNotInitialized();
+
+        if (monitorMesh is not null)
+        {
+            viewer.Scene.Children.Remove(monitorMesh);
+
+            bool removed = objectTypes.Remove(monitorMesh.Uuid);
+            Debug.Assert(removed);
+
+            await viewer.UpdateScene();
+        }
+    }
+
+    /// <summary>
+    /// Monitor depth is controlled by the viewer.
+    /// </summary>
+    public async Task SetMonitorRect(double x, double y, double z, double width, double height)
+    {
+        ThrowIfNotInitialized();
+
+        if (monitorMesh is null)
+        {
+            monitorMesh = new Mesh()
+            {
+                Geometry = new BoxGeometry(depth: 0.05),
+                Material = new MeshStandardMaterial()
+                {
+                    Color = "#000000"
+                }
+            };
+
+            AddMonitorMesh(monitorMesh);
+        }
+
+        monitorMesh.Position = LightPositionToObjectPosition(x, y, z);
+
+        BoxGeometry geometry = (BoxGeometry)monitorMesh.Geometry;
+        geometry.Width = width;
+        geometry.Height = height;
+
+        await viewer.UpdateScene();
+    }
+
+    private void AddMonitorMesh(Mesh mesh)
+    {
+        Scene.Add(mesh);
+        objectTypes.Add(mesh.Uuid, "Monitor");
+    }
+
     public async Task AddOrUpdateLightAsync(NDPLight light, string color)
     {
         ThrowIfNotInitialized();
@@ -142,6 +203,7 @@ public partial class LightPositionViewer : IDisposable
 
         await viewer.UpdateScene();
     }
+
     public async Task Signal(NDPLight light, TimeSpan duration, string color)
     {
         ThrowIfNotInitialized();
@@ -188,24 +250,6 @@ public partial class LightPositionViewer : IDisposable
         pointLight.Color = color;
     }
 
-    private static void BuildScene(Scene scene)
-    {
-        const double _180deg = Math.PI;
-        const double _90deg = _180deg / 2;
-
-        // Light
-        scene.Add(new AmbientLight() { Intensity = 0.8d });
-
-        // Room
-        scene.Add(CreateWall(new Vector3(0, -1, 0), new Euler() { X = -_90deg }, 2, 2, colorOverride: "#806060")); // floor
-        scene.Add(CreateWall(new Vector3(0, -1, 0), new Euler() { X = _90deg }, 2, 2, colorOverride: "#806060")); // floor inverted (so that you can't see through the floor when looking upwards)
-        scene.Add(CreateWall(new Vector3(-1, 0, 0), new Euler() { Y = _90deg }, 2, 2)); // left wall
-        scene.Add(CreateWall(new Vector3(1, 0, 0), new Euler() { Y = -_90deg }, 2, 2)); // right wall
-        scene.Add(CreateWall(new Vector3(0, 0, -1), new Euler(), 2, 2)); // back wall
-        scene.Add(CreateWall(new Vector3(0, 0, 1), new Euler() { X = _180deg }, 2, 2)); // front wall
-        // scene.Add(CreateWall(new Vector3(0, 1, 0), new Euler() { X = _90deg }, 2, 2, colorOverride: "#C0C0C0")); // ceiling
-    }
-
     private void AddLight(NDPLight light, string color)
     {
         Mesh mesh = new()
@@ -235,18 +279,67 @@ public partial class LightPositionViewer : IDisposable
         UpdateLight(data);
     }
 
-    private static Mesh CreateWall(Vector3 pos, Euler rotation, double width, double height, string? colorOverride = null)
+    private class SceneBuilder
     {
-        return new Mesh()
+        public Scene Scene { get; }
+        private Dictionary<Guid, string>? objectTypes;
+
+        public SceneBuilder(Scene scene)
         {
-            Position = pos,
-            Rotation = rotation,
-            Geometry = new PlaneGeometry(width: width, height: height),
-            Material = new MeshStandardMaterial()
+            Scene = scene;
+            objectTypes = null;
+        }
+
+        public Dictionary<Guid, string> Build()
+        {
+            if (objectTypes is not null)
+                throw new InvalidOperationException("Scene builder has already been built.");
+
+            objectTypes = new Dictionary<Guid, string>();
+            BuildScene();
+            return objectTypes;
+        }
+
+        private void BuildScene()
+        {
+            const double _180deg = Math.PI;
+            const double _90deg = _180deg / 2;
+
+            // Light
+            Scene.Add(new AmbientLight() { Intensity = 0.8d });
+
+            // Room
+            CreateFloor(new Vector3(0, -1, 0), 2, 2);
+            CreateWall(new Vector3(-1, 0, 0), new Euler() { Y = _90deg }, 2, 2); // left wall
+            CreateWall(new Vector3(1, 0, 0), new Euler() { Y = -_90deg }, 2, 2); // right wall
+            CreateWall(new Vector3(0, 0, -1), new Euler(), 2, 2); // back wall
+            CreateWall(new Vector3(0, 0, 1), new Euler() { X = _180deg }, 2, 2); // front wall
+                                                                                 // scene.Add(CreateWall(new Vector3(0, 1, 0), new Euler() { X = _90deg }, 2, 2, colorOverride: "#C0C0C0")); // ceiling
+        }
+
+        private void CreateFloor(Vector3 pos, double sizeX, double sizeY)
+        {
+            const double _90deg = Math.PI / 2d;
+            CreateWall(pos, new Euler() { X = -_90deg }, sizeX, sizeY, colorOverride: "#806060", typeOverride: "Floor"); // floor
+            CreateWall(pos, new Euler() { X = _90deg }, sizeX, sizeY, colorOverride: "#806060", typeOverride: "Floor"); // floor inverted (so that you can't see through the floor when looking upwards)
+        }
+
+        private void CreateWall(Vector3 pos, Euler rotation, double width, double height, string? colorOverride = null, string? typeOverride = null)
+        {
+            Mesh mesh = new()
             {
-                Color = colorOverride ?? "E0E0E0"
-            }
-        };
+                Position = pos,
+                Rotation = rotation,
+                Geometry = new PlaneGeometry(width: width, height: height),
+                Material = new MeshStandardMaterial()
+                {
+                    Color = colorOverride ?? "E0E0E0"
+                }
+            };
+
+            Scene.Add(mesh);
+            objectTypes!.Add(mesh.Uuid, typeOverride ?? "Wall");
+        }
     }
 
     public void Dispose()
@@ -261,12 +354,13 @@ public partial class LightPositionViewer : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private Vector3 LightPositionToObjectPosition(LightPosition pos)
+    private Vector3 LightPositionToObjectPosition(LightPosition pos) => LightPositionToObjectPosition(pos.X, pos.Y, pos.Z);
+    private Vector3 LightPositionToObjectPosition(double x, double y, double z)
     {
         return new(
-            x: pos.X,
-            y: pos.Z, // Blazor3D doesn't allow setting Z axis as up
-            z: -pos.Y // Z grows away from camera, which is inverse of Philips Hue
+            x: x,
+            y: z, // Blazor3D doesn't allow setting Z axis as up
+            z: -y // Z grows away from camera, which is inverse of Philips Hue
         );
     }
 }

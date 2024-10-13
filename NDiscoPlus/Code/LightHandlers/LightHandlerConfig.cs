@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 namespace NDiscoPlus.Code.LightHandlers;
 
 [JsonDerivedType(typeof(ScreenLightHandlerConfig), typeDiscriminator: "screen")]
+[JsonDerivedType(typeof(ScreenMimicLightHandlerConfig), typeDiscriminator: "screen_mimic")]
 [JsonDerivedType(typeof(HueLightHandlerConfig), typeDiscriminator: "hue")]
 public abstract class LightHandlerConfig
 {

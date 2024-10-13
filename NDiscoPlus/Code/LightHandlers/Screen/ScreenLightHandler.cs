@@ -1,5 +1,6 @@
 ﻿using MudBlazor;
 using NDiscoPlus.Components.Elements;
+using NDiscoPlus.Components.Elements.GradientCanvas;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
 using System.Diagnostics;
@@ -13,38 +14,17 @@ internal readonly record struct ScreenLight(NDPLight Light, NDPColor? Color)
         => new(Light, color);
 }
 
-internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
+internal class ScreenLightHandler : BaseScreenLightHandler
 {
-    private record class LightsContainer(NDPLight[] Lights)
-    {
-        public NDPColor[]? Colors { get; set; } = null;
-    }
-
-    private LightsContainer? lights;
-    public class RenderData
-    {
-        private readonly ScreenLightHandler parent;
-        public RenderData(ScreenLightHandler parent)
-        {
-            this.parent = parent;
-        }
-
-        public IReadOnlyList<NDPColor>? Colors => parent.lights?.Colors;
-        public bool HDR => parent.Config.UseHDR;
-    }
-
-
-    // Publicly exposed parameters for screen light handling
-    public RenderData Render { get; }
     public ScreenLightSignaler? Signaler { get; set; }
 
     public ScreenLightHandler(ScreenLightHandlerConfig? config) : base(config)
     {
-        Render = new RenderData(this);
     }
 
-    protected override ScreenLightHandlerConfig CreateConfig()
-        => new();
+    private new ScreenLightHandlerConfig Config => (ScreenLightHandlerConfig)base.Config;
+    protected override LightHandlerConfig CreateConfig()
+        => new ScreenLightHandlerConfig();
 
     private NDPLight[] GetLights4()
     {
@@ -76,7 +56,7 @@ internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
 
     private NDPLight CreateLight(ScreenLightId id, LightPosition pos)
     {
-        ColorGamut colorGamut = Config.UseHDR ? ColorGamut.DisplayP3 : ColorGamut.sRGB;
+        ColorGamut colorGamut = Config.ColorGamut;
 
         string leftRight = pos.X switch
         {
@@ -122,7 +102,7 @@ internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
 
     public override ValueTask<bool> ValidateConfig(ErrorMessageCollector? errors)
     {
-        bool valid = true;
+        bool valid = Config.ValidateConfig(errors);
 
         if (!Enum.GetValues<ScreenLightCount>().Contains(Config.LightCount))
         {
@@ -135,33 +115,27 @@ internal class ScreenLightHandler : LightHandler<ScreenLightHandlerConfig>
 
     public override ValueTask<NDPLight[]?> Start(ErrorMessageCollector? errors)
     {
-        if (lights is not null)
-        {
-            errors?.Add("Handler already running.");
-            return new((NDPLight[]?)null);
-        }
-
         NDPLight[] l = GetLightsInternal();
-        lights = new LightsContainer(l);
-
         return new(l);
     }
 
-    public override ValueTask Update(LightColorCollection lightColors)
+    protected override RenderMeta? RenderUpdate(LightColorCollection lightColors, ref readonly Dictionary<string, object> componentArgs)
     {
-        if (lights is null)
-            throw new InvalidOperationException("Screen Light Handler not started.");
-        lights.Colors ??= new NDPColor[lights.Lights.Length];
+        if (!componentArgs.TryGetValue("Colors", out object? colorsList))
+        {
+            colorsList = Enumerable.Repeat(Config.ColorGamut.GamutBlack(), (int)Config.LightCount).ToList();
+            componentArgs.Add("Colors", colorsList);
+        }
 
+        List<NDPColor> colors = (List<NDPColor>)colorsList;
         foreach ((ScreenLightId light, NDPColor color) in lightColors.OfType<ScreenLightId>()) // get lights of correct type
-            lights.Colors[light.Index] = color;
+            colors![light.Index] = color;
 
-        return new();
+        return new(typeof(CornerGradientCanvas));
     }
 
     public override ValueTask Stop()
     {
-        lights = null;
         return new();
     }
 

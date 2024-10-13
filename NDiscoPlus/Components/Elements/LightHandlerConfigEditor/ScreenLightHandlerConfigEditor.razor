@@ -1,5 +1,6 @@
 ﻿@using NDiscoPlus.Code.JavaScriptInterop
 @using NDiscoPlus.Code.LightHandlers.Screen
+@using NDiscoPlus.Components.Elements.GradientCanvas
 @using NDiscoPlus.Shared
 @using NDiscoPlus.Shared.Models
 @using NDiscoPlus.Shared.Models.Color
@@ -7,20 +8,29 @@
 @using System.Collections.Immutable
 @using System.Diagnostics
 
-@inherits LightHandlerConfigEditor<ScreenLightHandlerConfig>
+@inherits LightHandlerConfigEditor<BaseScreenLightHandlerConfig>
 
 @implements IAsyncDisposable
 
 @inject IJSRuntime JSRuntime
 
 <MudStack>
-    <MudRadioGroup T="ScreenLightCount"
-                    @bind-Value=Config.LightCount>
-        @foreach (ScreenLightCount lightCount in Enum.GetValues<ScreenLightCount>())
-        {
-            <MudRadio Color="Color.Primary" Value="@lightCount">@(lightCount.ToString() + " Lights")</MudRadio>
-        }
-    </MudRadioGroup>
+    @if (Config is ScreenLightHandlerConfig screenConfig)
+    {
+        <MudRadioGroup T="ScreenLightCount"
+        @bind-Value=screenConfig.LightCount>
+            @foreach (ScreenLightCount lightCount in Enum.GetValues<ScreenLightCount>())
+            {
+                <MudRadio Color="Color.Primary" Value="@lightCount">@(lightCount.ToString() + " Lights")</MudRadio>
+            }
+        </MudRadioGroup>
+    }
+    else if (Config is ScreenMimicLightHandlerConfig mimicConfig)
+    {
+        <MudNumericField T="double" @bind-Value=@(mimicConfig.BrightnessMultiplier)
+        Min="0d" Max="1d" Step="0.1d" HelperText="@(mimicConfig.BrightnessMultiplier.ToString("P"))" Immediate 
+        Label="Brightness Multiplier" />
+    }
 
     <MudDivider />
 
@@ -66,11 +76,20 @@
     <div>
         <MudText Align="Align.Left"><strong>Preview:</strong></MudText>
         <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
-            <GradientCanvas UseHDR="@(Config.UseHDR)"
-                            Colors="GetPreviewColors()"
-                            Width="@(canvasSize.Width)"
-                            Height="@(canvasSize.Height)"
-                            Style="border-radius:16px; overflow:hidden;"/>
+            @if (Config is ScreenLightHandlerConfig)
+            {
+                <CornerGradientCanvas Colors="@(GetPreviewGradient().Colors)"
+                                      Width="@(canvasSize.Width)"
+                                      Height="@(canvasSize.Height)"
+                                      Style="border-radius:16px; overflow:hidden;"/>
+            }
+            else
+            {
+                <HorizontalGradientCanvas Colors="@(GetPreviewGradient().GradientColors)"
+                                          Width="@(canvasSize.Width)"
+                                          Height="@(canvasSize.Height)"
+                                          Style="border-radius:16px; overflow:hidden;" />
+            }
             <MudText>@(Config.LightMetrics.AspectRatioY)</MudText>
         </MudStack>
         <MudText Style=@($"width:{canvasSize.Width}px;") Align="Align.Center">@(Config.LightMetrics.AspectRatioX)</MudText>
@@ -78,7 +97,7 @@
 </MudStack>
 
 @code {
-    private readonly record struct PreviewGradient(ImmutableArray<NDPColor> Colors, bool HDR);
+    private readonly record struct PreviewGradient(int LightCount, ImmutableArray<NDPColor> Colors, ImmutableArray<HorizontalGradientCanvas.ColorPosition> GradientColors, bool HDR);
 
     private PreviewGradient? _preview;
 
@@ -90,21 +109,28 @@
         windowSize = await WindowSizeProvider.CreateAsync(JSRuntime);
     }
 
-    private IReadOnlyList<NDPColor> GetPreviewColors()
+    private PreviewGradient GetPreviewGradient()
     {
-        int lightCount = (int)Config.LightCount;
+        int lightCount = 5;
+        if (Config is ScreenLightHandlerConfig screenConfig)
+            lightCount = (int)screenConfig.LightCount;
+
         bool hdr = Config.UseHDR;
 
-        if (_preview is not PreviewGradient pg || pg.Colors.Length != lightCount || pg.HDR != hdr)
+        if (_preview is not PreviewGradient pg || pg.LightCount != lightCount || pg.HDR != hdr)
         {
+            ImmutableArray<NDPColor> colors = ConstructColors(lightCount, hdr).ToImmutableArray();
+
             _preview = new(
-                Colors: ConstructColors(lightCount, hdr).ToImmutableArray(),
+                LightCount: lightCount,
+                Colors: colors,
+                GradientColors: ToGradientColors(colors).ToImmutableArray(),
                 hdr
             );
             Debug.Assert(_preview.Value.Colors.Length == lightCount);
         }
 
-        return _preview.Value.Colors;
+        return _preview.Value;
     }
 
     private string XYZHelperText(double value, string positive, string negative)
@@ -140,6 +166,16 @@
             yield return blue;
         if (count > 5)
             yield return NDPColor.Lerp(blue, red, 0.5);
+    }
+
+    private static IEnumerable<HorizontalGradientCanvas.ColorPosition> ToGradientColors(IReadOnlyList<NDPColor> colors)
+    {
+        for (int i = 0; i < colors.Count; i++)
+        {
+            double progress = i / (double)colors.Count;
+            NDPColor color = colors[i];
+            yield return new HorizontalGradientCanvas.ColorPosition(progress, color);
+        }
     }
 
     protected override void OnAfterRender(bool firstRender)

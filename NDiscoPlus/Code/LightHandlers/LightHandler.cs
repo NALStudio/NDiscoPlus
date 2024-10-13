@@ -47,6 +47,15 @@ public abstract class LightHandler : IAsyncDisposable
             MaxCount = 1
         },
         new(
+            typeof(ScreenMimicLightHandler),
+            "Screen (mimic)",
+            Icons.Material.Rounded.DesktopMac,
+            MudBlazor.Colors.Lime.Default
+        )
+        {
+            MaxCount = 1
+        },
+        new(
             typeof(HueLightHandler),
             "Philips Hue",
             Icons.Material.Rounded.Lightbulb,
@@ -92,6 +101,11 @@ public abstract class LightHandler : IAsyncDisposable
     /// </summary>
     /// <returns>The lights that are ready to receive updates or <see langword="null"/> if handler could not be started.</returns>
     public abstract ValueTask<NDPLight[]?> Start(ErrorMessageCollector? errors);
+    public virtual ValueTask OnAfterStart(ImmutableArray<LightRecord> allLights)
+    {
+        return ValueTask.CompletedTask;
+    }
+
     public abstract ValueTask Update(LightColorCollection lights);
 
     /// <summary>

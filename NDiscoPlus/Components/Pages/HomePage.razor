@@ -1,5 +1,4 @@
 ﻿@page "/"
-@* REMEMBER TO SWITCH BACK TO / AFTER DEBUGGING *@
 
 @using Microsoft.Extensions.Logging
 @using MudBlazor.Utilities
@@ -11,6 +10,7 @@
 @using NDiscoPlus.Code.Models
 @using NDiscoPlus.Code.Models.LightProfile
 @using NDiscoPlus.Components.Elements
+@using NDiscoPlus.Components.Elements.GradientCanvas
 @using NDiscoPlus.Components.Layout
 @using NDiscoPlus.Shared
 @using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics
@@ -49,10 +49,26 @@
 
 <div @onmousemove="OnMouseMove" style=@AddCursorStyle("width:100vw; height:100vh; overflow: hidden;")>
 <div style="position:fixed;top:0;bottom:0;left:0;right:0;">
-    <GradientCanvas Colors="@BestBackgroundGradientOption"
-                    Width="@(windowSize?.Width ?? 1920)"
-                    Height="@(windowSize?.Height ?? 1080)"
-                    UseHDR="@(lightHandling?.ScreenLightHandlerSingleton?.Render.HDR ?? false)" />
+    @if (lightHandling is null)
+    {
+        <CornerGradientCanvas Colors="@(TryGetTrackGradient(context?.Track)?.Gradient ?? defaultGradient.GradientMustNotBeNull)"
+                              Width="@(windowSize?.Width ?? 1920)"
+                              Height="@(windowSize?.Height ?? 1080)" />
+    }
+    else
+    {
+        foreach (LightHandler lightHandler in lightHandling.Handlers)
+        {
+            if (lightHandler is not BaseScreenLightHandler screenHandler)
+                continue;
+
+            BaseScreenLightHandler.RenderData? renderData = screenHandler.Render(width: windowSize?.Width ?? 1920, height: windowSize?.Height ?? 1080);
+            if (renderData is BaseScreenLightHandler.RenderData rd)
+            {
+                <DynamicComponent Type="rd.ComponentType" Parameters="rd.ComponentArgs" />
+            }
+        }
+    }
 </div>
 <!-- padding-top:20vh and Justify.FlexStart since centering the item looks a bit stupid... Moving the elements slightly up looks nicer. -->
 <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
@@ -245,16 +261,6 @@
     const string TimespanFormat = @"mm\:ss";
 
     static readonly PaletteGradient defaultGradient = new(NDPDefaultPalettes.DefaultSRGB);
-    public IReadOnlyList<NDPColor> BestBackgroundGradientOption
-    {
-        get
-        {
-            if (lightHandling is not null)
-                return lightHandling.ScreenLightHandlerSingleton?.Render.Colors ?? new NDPColor[4];
-            else
-                return TryGetTrackGradient(context?.Track)?.Gradient ?? defaultGradient.GradientMustNotBeNull;
-        }
-    }
 
     // Large capacity is fine. I'd rather use a bit more memory than compute a new gradient (heavy operation!)
     readonly LRUCache<string, Task<PaletteGradient?>> trackIdToGradientCache = new(capacity: 50);
@@ -458,9 +464,6 @@
                 startSuccessful = false;
         }
 
-        startupTimer.Stop();
-        if (startupTimer.Elapsed > TimeSpan.FromSeconds(5))
-            logger.LogWarning("Light handler startup took over 5 seconds. Please note that at around 10 seconds, the Philips Hue entertainment connection gets terminated.");
 
         if (!startSuccessful)
         {
@@ -476,6 +479,13 @@
         }
 
         ImmutableArray<LightRecord> lightRecords = profile.BuildLightRecords(lights).ToImmutableArray();
+        foreach (LightHandler handler in profile.Handlers)
+            await handler.OnAfterStart(lightRecords);
+
+        startupTimer.Stop();
+        if (startupTimer.Elapsed > TimeSpan.FromSeconds(5))
+            logger.LogWarning("Light handler startup took over 5 seconds. Please note that at around 10 seconds, the Philips Hue entertainment connection gets terminated.");
+
         lightHandling = new(profile.Handlers.ToImmutableArray(), lightRecords, screenLightHandlerSingleton);
     }
 

@@ -45,14 +45,19 @@ public sealed class LightProfile
     }
     public static LightProfile LoadCurrent() => LoadAll()[0];
 
-    public static LightProfile CreateDefault()
+    public static LightProfile Create(LightProfile? copyFrom = null)
     {
+        string name = string.Empty;
+        if (copyFrom is not null)
+            name = copyFrom.Name + " (copy)";
+
         return new LightProfile(
-            name: string.Empty,
-            handlers: [new ScreenLightHandler(null)],
-            lightConfigurationOverrides: ImmutableDictionary<LightId, LightConfig>.Empty
+            name: name,
+            handlers: copyFrom?.handlers ?? [new ScreenLightHandler(null)],
+            lightConfigurationOverrides: copyFrom?.LightConfigurationOverrides ?? Enumerable.Empty<KeyValuePair<LightId, LightConfig>>()
         );
     }
+    public static LightProfile CreateDefault() => Create(null);
 
     public static void SaveAll(LightProfile[] allProfiles, LightProfile currentProfile)
     {

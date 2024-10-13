@@ -1,0 +1,170 @@
+﻿@using NDiscoPlus.Shared.Models.Color
+<BaseGradientCanvas Width="Width" Height="Height" Style="@Style" Colors="@GetColors()">
+<FragmentShader>
+<script id="GradientCanvas_fragment" type="x-shader/x-fragment">
+#version 300 es
+    
+#line 8
+
+#define LIGHT_COUNT %LIGHT_COUNT%
+#define DITHERED %DITHERED%
+
+precision highp float;
+
+const float DITHER_NOISE_GRANULARITY = 0.5 / 255.0;
+
+uniform vec2 canvasSize;
+uniform vec3 lightColors[LIGHT_COUNT];
+
+out vec4 fragColor;
+
+
+float SRGBCompanding(float c)
+{
+    if (c <= 0.0031308) {
+        return c * 12.92;
+    }
+    else {
+        return (1.055 * pow(c, 1. / 2.4)) - 0.055;
+    }
+}
+
+// xyY => XYZ
+vec3 _xyY2XYZ(vec3 xyY) {
+    float x = xyY.x;
+    float y = xyY.y;
+    float z = 1. - x - y;
+
+    float Y = xyY.z;
+    float X = (Y / y) * x;
+    float Z = (Y / y) * z;
+
+    return vec3(X, Y, Z);
+}
+
+// xyY => sRGB
+vec3 xyY2sRGB(vec3 xyY) {
+    vec3 xyz = _xyY2XYZ(xyY);
+
+    float r = (3.2406255 * xyz.x) + (-1.537208 * xyz.y) + (-0.4986286 * xyz.z);
+    float g = (-0.9689307 * xyz.x) + (1.8757561 * xyz.y) + (0.0415175 * xyz.z);
+    float b = (0.0557101 * xyz.x) + (-0.2040211 * xyz.y) + (1.0569959 * xyz.z);
+
+    r = SRGBCompanding(r);
+    g = SRGBCompanding(g);
+    b = SRGBCompanding(b);
+
+    return vec3(r, g, b);
+}
+
+vec3 xyYGradient(vec3 from, vec3 to, float t) {
+    // To produce a correct gradient
+    // we need to match the XY positions when brightness is 0
+    if (from.z == 0.) {
+        from = vec3(to.xy, 0.);
+    }
+    else if (to.z == 0.) {
+        to = vec3(from.xy, 0.);
+    }
+
+    return mix(from, to, t);
+}
+
+vec3 FourPointGradient(vec2 pos, vec3 topleft, vec3 topright, vec3 bottomleft, vec3 bottomright) {
+    vec3 top = xyYGradient(topleft, topright, pos.x);
+    vec3 bottom = xyYGradient(bottomleft, bottomright, pos.x);
+
+    return xyYGradient(bottom, top, pos.y); // pos.y == 0: bottom, pos.y == 1: top
+}
+
+vec3 SixPointGradient(vec2 pos, vec3 topleft, vec3 topmid, vec3 topright, vec3 bottomleft, vec3 bottommid, vec3 bottomright) {
+    vec3 top;
+    vec3 bottom;
+    if (pos.x <= 0.5) {
+        float scaledX = 2. * pos.x;
+        top = xyYGradient(topleft, topmid, scaledX);
+        bottom = xyYGradient(bottomleft, bottommid, scaledX);
+    }
+    else {
+        float scaledX = 2. * (pos.x - 0.5);
+        top = xyYGradient(topmid, topright, scaledX);
+        bottom = xyYGradient(bottommid, bottomright, scaledX);
+    }
+
+    return xyYGradient(bottom, top, pos.y); // pos.y goes from bottom to top (y increases upwards)
+}
+
+float _ditherRandom(highp vec2 coords) {
+    return fract(sin(dot(coords.xy, vec2(12.9898,78.233))) * 43758.5453);
+}
+
+
+// https://shader-tutorial.dev/advanced/color-banding-dithering/
+void Dither(in vec2 coord, inout vec3 rgb) {
+    float fragmentColor = mix(0.05, 0.35, 1.0 - coord.y);
+    rgb += mix(-DITHER_NOISE_GRANULARITY, DITHER_NOISE_GRANULARITY, _ditherRandom(coord));
+}
+
+void main() {
+    vec2 coord = gl_FragCoord.xy / canvasSize;
+
+    #if (LIGHT_COUNT == 4)
+        vec3 color = FourPointGradient(coord, lightColors[0], lightColors[1], lightColors[2], lightColors[3]);
+    #else
+        vec3 color = SixPointGradient(coord, lightColors[0], lightColors[1], lightColors[2], lightColors[3], lightColors[4], lightColors[5]);
+    #endif
+
+    vec3 rgbColor = xyY2sRGB(color);
+
+    if (DITHERED) {
+        Dither(coord, rgbColor);
+    }
+
+    fragColor = vec4(rgbColor, 1.);
+}
+</script>
+</FragmentShader>
+</BaseGradientCanvas>
+
+@code {
+    [Parameter, EditorRequired]
+    public int Width { get; set; }
+
+    [Parameter, EditorRequired]
+    public int Height { get; set; }
+
+    [Parameter]
+    public string? Style { get; set; }
+
+    /// <summary>
+    /// Either 4 or 6 colors to render.
+    /// </summary>
+    /// <remarks>
+    /// Do not change the color count often as it forces a rebuild of the entire shader pipeline.
+    /// </remarks>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<NDPColor>? Colors { get; set; }
+
+    private BaseGradientCanvas.GradientColors GetColors()
+    {
+        const int ColorComponentCount = 3;
+
+        int colorsCount = Colors!.Count;
+        if (colorsCount != 4 && colorsCount != 6)
+            throw new ArgumentException($"Invalid colors count: {colorsCount}");
+
+        double[] colorsArr = new double[colorsCount * ColorComponentCount];
+        Span<double> colors = colorsArr.AsSpan();
+
+        for (int colorIndex = 0; colorIndex < colorsCount; colorIndex++)
+        {
+            NDPColor color = Colors[colorIndex];
+            int index = colorIndex * ColorComponentCount;
+            colors[index] = color.X;
+            colors[index + 1] = color.Y;
+            colors[index + 2] = color.Brightness;
+        }
+
+        return new BaseGradientCanvas.GradientColors(colorsCount, BaseGradientCanvas.UniformVector.vec3, colorsArr);
+    }
+}

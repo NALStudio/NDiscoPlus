@@ -1,4 +1,5 @@
 ﻿using NDiscoPlus.Components.Elements.LightHandlerConfigEditor;
+using NDiscoPlus.Shared.Models;
 using System.Text.Json.Serialization;
 
 namespace NDiscoPlus.Code.LightHandlers.Screen;
@@ -9,16 +10,51 @@ public enum ScreenLightCount
     Six = 6
 }
 
-public class ScreenLightHandlerConfig : LightHandlerConfig
+public abstract class BaseScreenLightHandlerConfig : LightHandlerConfig
 {
-    public ScreenLightCount LightCount { get; set; } = ScreenLightCount.Six;
     public bool UseHDR { get; set; } = false;
+
+    [JsonIgnore]
+    public ColorGamut ColorGamut => UseHDR ? ColorGamut.DisplayP3 : ColorGamut.sRGB;
 
     public ScreenLightMetrics LightMetrics { get; init; } = new();
 
+    public sealed override Type GetEditorType() => typeof(ScreenLightHandlerConfigEditor);
+
+    internal bool ValidateConfig(ErrorMessageCollector? errors)
+    {
+        bool valid = true;
+
+        if (UseHDR)
+        {
+            valid = false;
+            errors?.Add("HDR has not yet been implemented.");
+        }
+
+        if (LightMetrics.AspectRatioX < 1 || LightMetrics.AspectRatioY < 1)
+        {
+            valid = false;
+            errors?.Add("Invalid aspect ratio.");
+        }
+
+        return valid;
+    }
+}
+
+public class ScreenMimicLightHandlerConfig : BaseScreenLightHandlerConfig
+{
+    public double BrightnessMultiplier { get; set; } = 1d;
+
+    public override LightHandler CreateLightHandler()
+        => new ScreenMimicLightHandler(this);
+}
+
+public class ScreenLightHandlerConfig : BaseScreenLightHandlerConfig
+{
+    public ScreenLightCount LightCount { get; set; } = ScreenLightCount.Six;
+
     public override LightHandler CreateLightHandler()
         => new ScreenLightHandler(this);
-    public override Type GetEditorType() => typeof(ScreenLightHandlerConfigEditor);
 }
 
 public class ScreenLightMetrics

@@ -60,14 +60,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Remove="Components\Elements\GradientCanvas.razor.js" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Content Include="Components\Elements\GradientCanvas.razor.js" />
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="Blazor3D" Version="0.1.42" />
         <PackageReference Include="Microsoft.Maui.Controls" Version="8.0.91" />
         <PackageReference Include="Microsoft.Maui.Controls.Compatibility" Version="8.0.91" />

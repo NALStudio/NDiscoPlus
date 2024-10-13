@@ -4,41 +4,34 @@ using NDiscoPlus.Shared.Models.Color;
 using System.Diagnostics;
 using System.Globalization;
 
-namespace NDiscoPlus.Components.Elements;
+namespace NDiscoPlus.Components.Elements.GradientCanvas;
 
-public partial class GradientCanvas : IAsyncDisposable
+public partial class BaseGradientCanvas : IAsyncDisposable
 {
-    private readonly record struct ShaderArgs(int ColorCount, bool UseHDR, bool Dither)
+    public readonly record struct GradientColors(int Count, UniformVector VectorType, double[] Unpacked);
+    public enum UniformVector { vec3 = 3, vec4 = 4 }
+
+    private readonly record struct ShaderArgs(int ColorCount, bool Dither)
     {
         public Dictionary<string, string> ToArgumentDictionary()
         {
             static string BoolToGlslConstant(bool value) => value ? "true" : "false";
             static string IntToGlslConstant(int value) => value.ToString(CultureInfo.InvariantCulture);
 
-            (int colorCount, bool useHdr, bool dither) = this;
-
-            if (colorCount != 4 && colorCount != 6)
-                throw new InvalidOperationException("Invalid color count.");
+            (int colorCount, bool dither) = this;
 
             return new()
             {
                 { "%LIGHT_COUNT%", IntToGlslConstant(colorCount) },
-                { "%USE_HDR%", BoolToGlslConstant(useHdr) },
-                { "%DITHERED%", BoolToGlslConstant(dither) },
+                { "%DITHERED%", BoolToGlslConstant(dither) }
             };
         }
     }
 
     private readonly record struct SizeArgs(int Width, int Height);
 
-    /// <summary>
-    /// Either 4 or 6 colors to render.
-    /// </summary>
-    /// <remarks>
-    /// Do not change the color count often as it forces a rebuild of the entire shader pipeline.
-    /// </remarks>
     [Parameter, EditorRequired]
-    public IReadOnlyList<NDPColor>? Colors { get; set; }
+    public RenderFragment? FragmentShader { get; set; }
 
     [Parameter, EditorRequired]
     public int Width { get; set; }
@@ -46,8 +39,9 @@ public partial class GradientCanvas : IAsyncDisposable
     [Parameter, EditorRequired]
     public int Height { get; set; }
 
-    [Parameter]
-    public bool UseHDR { get; set; } = false;
+    [Parameter, EditorRequired]
+    public GradientColors? Colors { get; set; }
+
     [Parameter]
     public bool Dither { get; set; } = true;
 
@@ -68,9 +62,10 @@ public partial class GradientCanvas : IAsyncDisposable
 
     private void RecreateProgramIfNeeded()
     {
-        Debug.Assert(Colors is not null);
+        if (Colors is not GradientColors colors)
+            throw new InvalidOperationException("No colors set.");
 
-        ShaderArgs shaderArgs = new(Colors.Count, UseHDR, Dither);
+        ShaderArgs shaderArgs = new(colors.Count, Dither);
         SizeArgs sizeArgs = new(Width, Height);
 
         if (
@@ -84,7 +79,7 @@ public partial class GradientCanvas : IAsyncDisposable
                 previousProgram: program,
                 shaderArgs: shaderArgs,
                 sizeArgs: sizeArgs,
-                colors: Colors
+                colors: colors
             );
             program.ContinueWith(_ => StateHasChanged(), TaskContinuationOptions.ExecuteSynchronously);
             // execute synchronously because Blazor doesn't support multithreading
@@ -94,38 +89,26 @@ public partial class GradientCanvas : IAsyncDisposable
         }
     }
 
-    private async Task<IJSObjectReference?> CreateProgram(Task<IJSObjectReference?>? previousProgram, ShaderArgs shaderArgs, SizeArgs sizeArgs, IReadOnlyList<NDPColor> colors)
+    private async Task<IJSObjectReference?> CreateProgram(Task<IJSObjectReference?>? previousProgram, ShaderArgs shaderArgs, SizeArgs sizeArgs, GradientColors colors)
     {
         if (previousProgram is not null)
             await DisposeProgram(previousProgram);
 
-        IJSObjectReference module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./Components/Elements/GradientCanvas.razor.js");
+        IJSObjectReference module = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./Components/Elements/GradientCanvas/BaseGradientCanvas.razor.js");
 
-        IJSObjectReference? program = await module.InvokeAsync<IJSObjectReference?>("createShaderPipeline", ParentDivReference, sizeArgs.Width, sizeArgs.Height, shaderArgs.UseHDR, shaderArgs.ToArgumentDictionary());
+        IJSObjectReference? program = await module.InvokeAsync<IJSObjectReference?>("createShaderPipeline", ParentDivReference, sizeArgs.Width, sizeArgs.Height, false, (int)colors.VectorType, shaderArgs.ToArgumentDictionary());
         if (program is null) // see javascript file for null return justification
             return null;
 
-        await program.InvokeVoidAsync("start_render", UnpackColors(colors));
+        await program.InvokeVoidAsync("start_render", colors.Unpacked);
 
         return program;
     }
 
     protected override async Task OnParametersSetAsync()
     {
-        Debug.Assert(Colors is not null);
-
         if (program?.IsCompleted == true && program.Result is IJSObjectReference prog)
-            await prog.InvokeVoidAsync("set_colors", UnpackColors(Colors));
-    }
-
-    private static IEnumerable<double> UnpackColors(IEnumerable<NDPColor> colors)
-    {
-        foreach (NDPColor color in colors)
-        {
-            yield return color.X;
-            yield return color.Y;
-            yield return color.Brightness;
-        }
+            await prog.InvokeVoidAsync("set_colors", Colors!.Value.Unpacked);
     }
 
     internal static async ValueTask DisposeProgram(Task<IJSObjectReference?> program)

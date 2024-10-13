@@ -47,7 +47,19 @@
                     <MudSelectItem T="LightProfile" Value=@profile />
                 }
             </MudSelect>
-            <MudIconButton Icon="@Icons.Material.Rounded.Edit" OnClick="ChangeCurrentProfileName" />
+            <MudMenu Icon="@(Icons.Material.Rounded.Edit)">
+                @{
+                    bool deleteDisabled = Profiles?.AllProfiles.Length < 2;
+                }
+
+                <MudMenuItem OnClick="ChangeCurrentProfileName">Edit Name</MudMenuItem>
+                <MudMenuItem OnClick="CopyCurrentProfile">Copy</MudMenuItem>
+                <MudMenuItem Disabled="deleteDisabled" OnClick="DeleteCurrentProfile">
+                    <MudText Color="@(!deleteDisabled ? Color.Error : Color.Inherit)">
+                        <b>Delete</b>    
+                    </MudText>
+                </MudMenuItem>
+            </MudMenu>
 
             <MudDivider Style="height:48px; margin-right:8px" Vertical="true" />
 
@@ -96,17 +108,21 @@
                     <div style="margin-bottom:32px;position:relative;left:0;right:0;top:0;">
                         <div style="aspect-ratio:16/9;max-height:540px;margin:auto;">
                             <LightPositionViewer @ref=lightPositionViewer />
-                            @if (lightPositionViewerSelected is DiscoveredLight selectedLight)
-                            {
-                                static string FormatPos(double a) => a.ToString("0.00", CultureInfo.InvariantCulture);
+                            <MudStack Row="true" class="ma-3" style="position:absolute;bottom:0;">
+                                @if (lightPositionViewerSelected.Light is DiscoveredLight selectedLight)
+                                {
+                                    static string FormatPos(double a) => a.ToString("0.00", CultureInfo.InvariantCulture);
+                                    LightPosition pos = selectedLight.Light.Position;
 
-                                LightPosition pos = selectedLight.Light.Position;
-                                <MudStack Row="true" class="ma-3" style="position:absolute;bottom:0;">
                                     <MudIcon Icon="@(selectedLight.Handler.Implementation.DisplayIcon)" />
                                     <MudText><b>@(selectedLight.Light.DisplayName)</b></MudText>
                                     <MudText>(@(FormatPos(pos.X)), @(FormatPos(pos.Y)), @(FormatPos(pos.Z)))</MudText>
-                                </MudStack>
-                            }
+                                }
+                                @if (lightPositionViewerSelected.Object is not null)
+                                {
+                                    <MudText><b>@(lightPositionViewerSelected.Object)</b></MudText>
+                                }
+                            </MudStack>
                         </div>
                     </div>
 
@@ -158,7 +174,7 @@
                                 <MudTooltip Text="@("Remove " + impl.DisplayName)">
                                     <MudIconButton Icon="@(Icons.Material.Rounded.RemoveCircleOutline)"
                                                    Color="Color.Error"
-                                                   OnClick="@(() => RemoveHandler(handler))" />
+                                                   OnClick="@(() => AskUserAndThenRemoveHandler(handler))" />
                                 </MudTooltip>
                             </div>
                         </MudStack>
@@ -180,6 +196,16 @@
     </MessageContent>
     <YesButton>
         <MudButton Color="Color.Error">Discard</MudButton>
+    </YesButton>
+</MudMessageBox>
+
+<MudMessageBox @ref="_askDeleteMessageBox" Title="Warning" CancelText="Cancel">
+    <MessageContent>
+        Are you sure you want to delete?
+        This action cannot be undone.
+    </MessageContent>
+    <YesButton>
+        <MudButton Style="margin-left:12px" Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.DeleteForever">Delete!</MudButton>
     </YesButton>
 </MudMessageBox>
 
@@ -269,11 +295,13 @@
     private ProfileData? Profiles { get; set; }
 
     private MudMessageBox? _unsavedMessageBox;
+    private MudMessageBox? _askDeleteMessageBox;
 
     private MudForm? form;
     private ScreenLightSignaler? screenLightSignaler;
     private LightPositionViewer? lightPositionViewer;
-    private DiscoveredLight? lightPositionViewerSelected;
+
+    private (string? Object, DiscoveredLight? Light) lightPositionViewerSelected;
 
     private bool _formIsTouched = false;
     private bool __currentProfileEdited = false;
@@ -316,7 +344,7 @@
         StateHasChanged();
     }
 
-    private void OnViewerLightSelected(LightId? light)
+    private void OnViewerLightSelected(string? objectType, LightId? light)
     {
         ThrowIfProfileDataIsNull();
 
@@ -330,7 +358,7 @@
             }
         }
 
-        lightPositionViewerSelected = selected;
+        lightPositionViewerSelected = (objectType, selected);
         StateHasChanged();
     }
 
@@ -346,13 +374,25 @@
 
         await lightPositionViewer!.WaitUntilInitializedAsync();
 
-        await lightPositionViewer!.ClearAsync();
+        BaseScreenLightHandler[] screenLightHandlers = CurrentProfile.Handlers.Where(static lh => lh is BaseScreenLightHandler).Cast<BaseScreenLightHandler>().ToArray();
+        if (screenLightHandlers.Length == 1)
+        {
+            BaseScreenLightHandlerConfig config = (BaseScreenLightHandlerConfig)screenLightHandlers[0].Config;
+            await lightPositionViewer.SetMonitorRect(config.LightMetrics.X, config.LightMetrics.Y, config.LightMetrics.Z, config.LightMetrics.Width, config.LightMetrics.Height);
+        }
+        else
+        {
+            // do not show monitor if there are no screen light handlers OR there are multiple
+            await lightPositionViewer.RemoveMonitorRect();
+        }
+
+        await lightPositionViewer.ClearAsync();
         await Profiles.LoadLights(OnNewLightDiscovered);
         StateHasChanged();
     }
 
-    private string GetProfileName(LightProfile profile)
-        => string.IsNullOrWhiteSpace(profile.Name) ? "Unnamed Profile" : profile.Name;
+    private string GetProfileName(LightProfile? profile)
+        => string.IsNullOrWhiteSpace(profile?.Name) ? "Unnamed Profile" : profile.Name;
 
     private async Task SignalLight(DiscoveredLight light)
     {
@@ -430,7 +470,7 @@
         await SaveAndReloadProfileData();
     }
 
-    private async Task SaveAndReloadProfileData(LightProfile? newCurrentProfile = null)
+    private async Task SaveAndReloadProfileData(LightProfile? newCurrentProfile = null, bool currentProfileAllowCreateNew = false, LightProfile? deleteProfile = null)
     {
         ThrowIfProfileDataIsNull();
 
@@ -438,9 +478,24 @@
         Profiles = null;
 
         LightProfile currentProfile = newCurrentProfile ?? profileData.CurrentProfile;
-        Debug.Assert(profileData.AllProfiles.Count(p => ReferenceEquals(p, currentProfile)) == 1);
+        List<LightProfile> allProfiles = profileData.AllProfiles.Where(p => !ReferenceEquals(p, deleteProfile)).ToList();
 
-        LightProfile.SaveAll(allProfiles: profileData.AllProfiles.ToArray(), currentProfile: currentProfile);
+        int currentProfileCount = allProfiles.Count(p => ReferenceEquals(p, currentProfile));
+        if (currentProfileCount < 1)
+        {
+            if (!currentProfileAllowCreateNew)
+                throw new InvalidOperationException("New current profile doesn't exist in profiles list. Cannot create a new instance since it is forbidden by currentProfileAllowCreateNew.");
+            allProfiles.Add(currentProfile);
+        }
+        else if (currentProfileCount > 1)
+        {
+            // profileData should only have one instance of the current profile
+            // if this isn't the case, something has went wrong somewhere,
+            // no idea where though...
+            throw new InvalidOperationException("Cannot have multiple current account references in the same profileData instance.");
+        }
+
+        LightProfile.SaveAll(allProfiles: allProfiles.ToArray(), currentProfile: currentProfile);
 
         __currentProfileEdited = false;
         form!.ResetTouched();
@@ -481,6 +536,26 @@
         }
     }
 
+    private async Task CopyCurrentProfile()
+    {
+        LightProfile copy = LightProfile.Create(copyFrom: Profiles!.CurrentProfile);
+        await SaveAndReloadProfileData(newCurrentProfile: copy, currentProfileAllowCreateNew: true);
+    }
+
+    private async Task DeleteCurrentProfile()
+    {
+        bool? delete = await _askDeleteMessageBox!.ShowAsync();
+        if (delete != true)
+            return;
+
+        ThrowIfProfileDataIsNull();
+
+        LightProfile current = Profiles.CurrentProfile;
+        // pick new current profile so that app doesn't crash when it doesn't find the old current profile from list
+        LightProfile newCurrent = Profiles.AllProfiles.First(p => !ReferenceEquals(p, current));
+        await SaveAndReloadProfileData(newCurrentProfile: newCurrent, deleteProfile: current);
+    }
+
     private void AddHandler(LightHandlerImplementation implementation)
     {
         ThrowIfProfileDataIsNull();
@@ -490,6 +565,15 @@
             CurrentProfileEdited = true;
         else
             _ = DialogService.ShowMessageBox("Maximum Handlers", "Cannot add handler, maximum handlers reached.");
+    }
+
+    private async Task AskUserAndThenRemoveHandler(LightHandler handler)
+    {
+        bool? delete = await _askDeleteMessageBox!.ShowAsync();
+        if (delete != true)
+            return;
+
+        RemoveHandler(handler);
     }
     private void RemoveHandler(LightHandler handler)
     {
