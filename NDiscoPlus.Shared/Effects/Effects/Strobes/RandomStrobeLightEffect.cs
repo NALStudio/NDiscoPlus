@@ -5,6 +5,8 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 
 namespace NDiscoPlus.Shared.Effects.Effects.Strobes;
+
+[Obsolete("Random strobes looked stupid and made my eyes sore.")]
 internal class RandomStrobeLightEffect : BaseStrobeLightEffect
 {
     public RandomStrobeLightEffect(EffectIntensity intensity) : base(intensity)

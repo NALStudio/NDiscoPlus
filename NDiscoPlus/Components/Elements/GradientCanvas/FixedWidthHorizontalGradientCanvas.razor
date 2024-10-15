@@ -1,0 +1,190 @@
+﻿@using NDiscoPlus.Shared.Models
+@using NDiscoPlus.Shared.Models.Color
+@using System.Diagnostics
+@inject IJSRuntime JSRuntime
+
+<BaseGradientCanvas Width="Width" Height="Height" Style="@Style" Colors="@GetColors()">
+<FragmentShader>
+<script id="GradientCanvas_vertex" type="x-shader/x-vertex">
+    #version 300 es
+
+    #line 15
+
+    in vec4 vertexPosition;
+
+    void main() {
+        gl_Position = vertexPosition;
+    }
+</script>
+
+<script id="GradientCanvas_fragment" type="x-shader/x-fragment">
+    #version 300 es
+
+    #line 23
+
+    #define LIGHT_COUNT %LIGHT_COUNT%
+    #define DITHERED %DITHERED%
+
+    precision highp float;
+
+    const float WIDTH = 0.2;
+    const float HALF_WIDTH = WIDTH / 2.;
+
+    const float DITHER_NOISE_GRANULARITY = 0.5 / 255.0;
+
+    uniform vec2 canvasSize;
+    uniform vec4 lightColors[LIGHT_COUNT];
+
+    out vec4 fragColor;
+
+    float SRGBCompanding(float c)
+    {
+        if (c <= 0.0031308) {
+            return c * 12.92;
+        }
+        else {
+            return (1.055 * pow(c, 1. / 2.4)) - 0.055;
+        }
+    }
+
+    // xyY => XYZ
+    vec3 _xyY2XYZ(vec3 xyY) {
+        float x = xyY.x;
+        float y = xyY.y;
+        float z = 1. - x - y;
+
+        float Y = xyY.z;
+        float X = (Y / y) * x;
+        float Z = (Y / y) * z;
+
+        return vec3(X, Y, Z);
+    }
+
+    // xyY => sRGB
+    vec3 xyY2sRGB(vec3 xyY) {
+        vec3 xyz = _xyY2XYZ(xyY);
+
+        float r = (3.2406255 * xyz.x) + (-1.537208 * xyz.y) + (-0.4986286 * xyz.z);
+        float g = (-0.9689307 * xyz.x) + (1.8757561 * xyz.y) + (0.0415175 * xyz.z);
+        float b = (0.0557101 * xyz.x) + (-0.2040211 * xyz.y) + (1.0569959 * xyz.z);
+
+        r = SRGBCompanding(r);
+        g = SRGBCompanding(g);
+        b = SRGBCompanding(b);
+
+        return vec3(r, g, b);
+    }
+
+    float _ditherRandom(highp vec2 coords) {
+        return fract(sin(dot(coords.xy, vec2(12.9898,78.233))) * 43758.5453);
+    }
+
+    // https://shader-tutorial.dev/advanced/color-banding-dithering/
+    void Dither(in vec2 coord, inout vec3 rgb) {
+        float fragmentColor = mix(0.05, 0.35, 1.0 - coord.y);
+        rgb += mix(-DITHER_NOISE_GRANULARITY, DITHER_NOISE_GRANULARITY, _ditherRandom(coord));
+    }
+
+    vec3 Interpolate(vec3 from, vec3 to, float t) {
+        t = clamp(t, 0., 1.);
+
+        // if interpolating from brightness 0, use the other color's XY so that the XY is interpolated correctly from black
+        if (from.z == 0.) {
+            from.xy = to.xy;
+        }
+        if (to.z == 0.) {
+            to.xy = from.xy;
+        }
+
+        // TODO: Change how long it takes to interpolate XY by how big the brightness difference is
+        // When both brightnesses are equal, interpolate linearly
+        // if from is brighter, show its color for longer
+        // and if to is brighter, do vice versa
+
+        return mix(from, to, t);
+    }
+
+    vec3 Gradient(float pos) {
+        vec3 color = vec3(0., 0., 0.);
+
+        for (int i = 0; i < LIGHT_COUNT; i++) {
+            vec4 lightColorRaw = lightColors[i];
+
+            float lightPos = lightColorRaw.x;
+            vec3 lightCol = lightColorRaw.yzw;
+
+            float dist = abs(pos - lightPos);
+
+            // goes from 0 to 1 when distance increases
+            float t = dist / HALF_WIDTH;
+            // and thus we interpolate from lightCol to color
+            color = Interpolate(lightCol, color, t);
+        }
+
+        return color;
+    }
+
+    void main() {
+        vec2 coord = gl_FragCoord.xy / canvasSize;
+
+        vec3 color = Gradient(coord.x);
+        
+        vec3 rgbColor = xyY2sRGB(color);
+
+        if (DITHERED) {
+            Dither(coord, rgbColor);
+        }
+
+        fragColor = vec4(rgbColor, 1.);
+    }
+</script>
+</FragmentShader>
+</BaseGradientCanvas>
+
+@code {
+    [Parameter, EditorRequired]
+    public int Width { get; set; }
+
+    [Parameter, EditorRequired]
+    public int Height { get; set; }
+
+    [Parameter]
+    public string? Style { get; set; }
+
+    /// <summary>
+    /// Any amount of colors to render.
+    /// </summary>
+    /// <remarks>
+    /// Do not change the color count often as it forces a rebuild of the entire shader pipeline.
+    /// </remarks>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<HorizontalGradientCanvas.ColorPosition>? Colors { get; set; }
+
+    private BaseGradientCanvas.GradientColors GetColors()
+    {
+        const int ColorComponentCount = 4;
+
+        IReadOnlyList<HorizontalGradientCanvas.ColorPosition>? gradientColors = Colors;
+        // if (gradientColors?.Count < 0) // If colors count is less than 1, our shader crashes. Use a default black value so this isn't the case.
+        //     gradientColors = new GradientColor[] { new GradientColor(0d, ColorGamut.sRGB.GamutBlack()) };
+
+        int colorsCount = gradientColors!.Count;
+
+        double[] colorsArr = new double[colorsCount * ColorComponentCount];
+        Span<double> colors = colorsArr.AsSpan();
+
+        for (int colorIndex = 0; colorIndex < colorsCount; colorIndex++)
+        {
+            HorizontalGradientCanvas.ColorPosition color = gradientColors[colorIndex];
+            int index = colorIndex * ColorComponentCount;
+            colors[index] = color.PosX;
+            colors[index + 1] = color.Color.X;
+            colors[index + 2] = color.Color.Y;
+            colors[index + 3] = color.Color.Brightness;
+        }
+
+        if (colorsCount < 1)
+            throw new InvalidOperationException("Colors count cannot be 0. We check and throw here instead of letting the shader crash.");
+        return new BaseGradientCanvas.GradientColors(colorsCount, BaseGradientCanvas.UniformVector.vec4, colorsArr);
+    }
+}

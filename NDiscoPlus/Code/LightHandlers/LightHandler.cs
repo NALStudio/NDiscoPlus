@@ -106,7 +106,8 @@ public abstract class LightHandler : IAsyncDisposable
         return ValueTask.CompletedTask;
     }
 
-    public abstract ValueTask Update(LightColorCollection lights);
+    // Not a ValueTask because we want the render loop to be synchronous (so that we can run it at over 60 fps)
+    public abstract void Update(LightColorCollection lights);
 
     /// <summary>
     /// <para>If handler isn't running, should result in a no-op.</para>

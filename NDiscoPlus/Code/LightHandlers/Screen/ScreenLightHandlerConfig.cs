@@ -10,6 +10,13 @@ public enum ScreenLightCount
     Six = 6
 }
 
+
+public enum ScreenHorizontalLightsVariant
+{
+    Continuous,
+    FixedWidth
+}
+
 public abstract class BaseScreenLightHandlerConfig : LightHandlerConfig
 {
     public bool UseHDR { get; set; } = false;
@@ -43,6 +50,7 @@ public abstract class BaseScreenLightHandlerConfig : LightHandlerConfig
 
 public class ScreenMimicLightHandlerConfig : BaseScreenLightHandlerConfig
 {
+    public ScreenHorizontalLightsVariant Variant { get; set; } = ScreenHorizontalLightsVariant.Continuous;
     public double BrightnessMultiplier { get; set; } = 1d;
 
     public override LightHandler CreateLightHandler()

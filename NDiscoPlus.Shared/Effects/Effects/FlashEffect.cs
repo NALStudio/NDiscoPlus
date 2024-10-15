@@ -17,6 +17,10 @@ internal class FlashEffect : NDPEffect
 {
     private const Channel _kChannel = Channel.Flash;
 
+    // Interpolate from base brightness to max brightness by this value.
+    // We don't use max brightness as I get a migrane from it (it's far too bright)
+    private const double _kBrightness = 0.5d;
+
     public FlashEffect(EffectIntensity intensity) : base(intensity)
     {
     }
@@ -84,7 +88,7 @@ internal class FlashEffect : NDPEffect
             }
 
             // Update current group with brightness 1
-            // I'm not sure if this needs to be afer color set or not, but I'll keep it here just in case
+            // I'm not sure if this needs to be after color set or not, but I'll keep it here just in case
             foreach (NDPLight light in currentGroup.Lights)
             {
                 channel.Add(
@@ -92,7 +96,7 @@ internal class FlashEffect : NDPEffect
                         light.Id,
                         beat.Start,
                         EffectConstants.MinEffectDuration,
-                        brightness: 1d
+                        brightness: DoubleHelpers.Lerp(api.Config.BaseBrightness, 1d, _kBrightness)
                     )
                 );
             }

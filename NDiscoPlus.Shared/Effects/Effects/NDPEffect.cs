@@ -18,7 +18,7 @@ internal abstract class NDPEffect
         new GroupedStrobeLightEffect(GroupedStrobeLightEffect.GroupingType.Horizontal, EffectIntensity.Maximum),
         new GroupedStrobeLightEffect(GroupedStrobeLightEffect.GroupingType.Vertical, EffectIntensity.Maximum),
         new GroupedStrobeLightEffect(GroupedStrobeLightEffect.GroupingType.RandomPattern, EffectIntensity.Maximum),
-        new RandomStrobeLightEffect(EffectIntensity.Maximum),
+        // new RandomStrobeLightEffect(EffectIntensity.Maximum), // Deprecated
 
         // Miscellaneous
         new ColorSwitchEffect(EffectIntensity.Medium),

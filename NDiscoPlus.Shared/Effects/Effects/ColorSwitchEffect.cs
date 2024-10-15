@@ -4,14 +4,8 @@ using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
-using System;
-using System.Collections.Frozen;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace NDiscoPlus.Shared.Effects.Effects;
 internal class ColorSwitchEffect : NDPEffect
@@ -23,12 +17,10 @@ internal class ColorSwitchEffect : NDPEffect
     {
     }
 
-    public override void Generate(EffectContext ctx, EffectAPI api)
+    [Obsolete("Algorithm was too calm and the light changes were hard to notice.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "I want to keep this here just in case I need it in the future")]
+    private static (int LightsPer, int BeatsPer) OldAnimationCountAlgorithm(EffectContext ctx, EffectChannel channel)
     {
-        EffectChannel? channel = api.GetChannel(Channel.Background);
-        if (channel is null)
-            return;
-
         double beatsPerAnimationDouble = ctx.Section.Tempo.TimeSignature / (double)channel.Lights.Count;
 
         int beatsPerAnimation;
@@ -47,6 +39,25 @@ internal class ColorSwitchEffect : NDPEffect
             beatsPerAnimation = 1;
             lightsPerAnimation = (int)(1d / beatsPerAnimationDouble);
         }
+
+        return (lightsPerAnimation, beatsPerAnimation);
+    }
+
+    private static (int LightsPer, int BeatsPer) NewAnimationCountAlgorithm(EffectChannel channel)
+    {
+        const int beatsPerAnimation = 1;
+        int lightsPerAnimation = channel.Lights.Count;
+
+        return (lightsPerAnimation, beatsPerAnimation);
+    }
+
+    public override void Generate(EffectContext ctx, EffectAPI api)
+    {
+        EffectChannel? channel = api.GetChannel(Channel.Background);
+        if (channel is null)
+            return;
+
+        (int lightsPerAnimation, int beatsPerAnimation) = NewAnimationCountAlgorithm(channel);
 
         Dictionary<LightId, NDPColor?> colors;
         ImmutableDictionary<LightId, NDPColor?> approximateBackgroundColors;

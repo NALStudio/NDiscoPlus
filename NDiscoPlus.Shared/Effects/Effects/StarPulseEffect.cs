@@ -7,6 +7,7 @@ using NDiscoPlus.Shared.Models.Color;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -24,6 +25,7 @@ internal class StarPulseEffect : NDPEffect
 
     private static Effect CreateEffect(LightId light, TimeSpan position, int totalLightCount)
     {
+        // TODO: Scale based on tempo and light count?
         int fadeDurationSeconds = totalLightCount switch
         {
             <= 6 => 1,
@@ -53,7 +55,9 @@ internal class StarPulseEffect : NDPEffect
 
             NDPLight[] availableLights = channel.GetAvailableLights(pos).ToArray();
             LightId light;
-            if (availableLights.Length > 0)
+            // must be over 1 (aka. >= 2) so that if there is only one light available,
+            // we don't enter into an endless loop of the same pattern
+            if (availableLights.Length > 1)
             {
                 light = ctx.Random.Choice(availableLights).Id;
             }
@@ -61,11 +65,17 @@ internal class StarPulseEffect : NDPEffect
             {
                 // Random select from two lowest value lights instead of taking the minimum value
                 // so that the pattern is random (instead of a repeating pattern) in case the segments go by two fast
-                Effect[] almostFinished = channel.GetBusyEffects(pos)
-                                                 .OrderBy(e => e.End)
-                                                 .Take(2)
-                                                 .ToArray();
-                light = ctx.Random.Choice(almostFinished).LightId;
+                List<LightId> almostFinishedLights = channel.GetBusyEffects(pos)
+                                                           .OrderBy(e => e.End)
+                                                           .Take(2)
+                                                           .Select(static l => l.LightId)
+                                                           .ToList();
+
+                // Add back all lights that were ignored because we don't want to keep following the same pattern
+                foreach (NDPLight wasAvailableButIgnored in availableLights)
+                    almostFinishedLights.Add(wasAvailableButIgnored.Id);
+
+                light = ctx.Random.Choice(almostFinishedLights);
             }
 
             channel.Add(CreateEffect(light, pos, totalLightCount: channel.Lights.Count));

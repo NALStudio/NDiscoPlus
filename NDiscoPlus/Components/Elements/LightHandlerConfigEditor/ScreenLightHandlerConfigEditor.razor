@@ -17,22 +17,31 @@
 <MudStack>
     @if (Config is ScreenLightHandlerConfig screenConfig)
     {
-        <MudRadioGroup T="ScreenLightCount"
-        @bind-Value=screenConfig.LightCount>
+        <MudRadioGroup T="ScreenLightCount" @bind-Value=@(screenConfig.LightCount)>
             @foreach (ScreenLightCount lightCount in Enum.GetValues<ScreenLightCount>())
             {
                 <MudRadio Color="Color.Primary" Value="@lightCount">@(lightCount.ToString() + " Lights")</MudRadio>
             }
         </MudRadioGroup>
+
+        <MudDivider />
     }
     else if (Config is ScreenMimicLightHandlerConfig mimicConfig)
     {
+        <MudRadioGroup T="ScreenHorizontalLightsVariant" @bind-Value=@(mimicConfig.Variant)>
+            <MudRadio Color="Color.Secondary" Value="ScreenHorizontalLightsVariant.Continuous">Continuous Gradient</MudRadio>
+            <MudRadio Color="Color.Secondary" Value="ScreenHorizontalLightsVariant.FixedWidth">Fixed-Width Gradient</MudRadio>
+        </MudRadioGroup>
+
+        <MudDivider />
+
         <MudNumericField T="double" @bind-Value=@(mimicConfig.BrightnessMultiplier)
         Min="0d" Max="1d" Step="0.1d" HelperText="@(mimicConfig.BrightnessMultiplier.ToString("P"))" Immediate 
         Label="Brightness Multiplier" />
+
+        <MudDivider />
     }
 
-    <MudDivider />
 
     <MudTooltip Text="How lights should be positioned relative to the room.">
         <MudText>Positioning</MudText>
@@ -83,12 +92,22 @@
                                       Height="@(canvasSize.Height)"
                                       Style="border-radius:16px; overflow:hidden;"/>
             }
-            else
+            else if (Config is ScreenMimicLightHandlerConfig mimicConfig)
             {
-                <HorizontalGradientCanvas Colors="@(GetPreviewGradient().GradientColors)"
-                                          Width="@(canvasSize.Width)"
-                                          Height="@(canvasSize.Height)"
-                                          Style="border-radius:16px; overflow:hidden;" />
+                if (mimicConfig.Variant == ScreenHorizontalLightsVariant.Continuous)
+                {
+                    <HorizontalGradientCanvas Colors="@(GetPreviewGradient().GradientColors)"
+                                              Width="@(canvasSize.Width)"
+                                              Height="@(canvasSize.Height)"
+                                              Style="border-radius:16px; overflow:hidden;" />
+                }
+                else if (mimicConfig.Variant == ScreenHorizontalLightsVariant.FixedWidth)
+                {
+                    <FixedWidthHorizontalGradientCanvas Colors="@(GetPreviewGradient().GradientColors)"
+                                                        Width="@(canvasSize.Width)"
+                                                        Height="@(canvasSize.Height)"
+                                                        Style="border-radius:16px; overflow:hidden;" />
+                }
             }
             <MudText>@(Config.LightMetrics.AspectRatioY)</MudText>
         </MudStack>
@@ -170,11 +189,13 @@
 
     private static IEnumerable<HorizontalGradientCanvas.ColorPosition> ToGradientColors(IReadOnlyList<NDPColor> colors)
     {
+        double offset = (1d / colors.Count) / 2d;
+
         for (int i = 0; i < colors.Count; i++)
         {
             double progress = i / (double)colors.Count;
             NDPColor color = colors[i];
-            yield return new HorizontalGradientCanvas.ColorPosition(progress, color);
+            yield return new HorizontalGradientCanvas.ColorPosition(offset + progress, color);
         }
     }
 

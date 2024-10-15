@@ -127,7 +127,7 @@ public class HueLightHandler : LightHandler<HueLightHandlerConfig>
         return ValueTask.CompletedTask;
     }
 
-    public override ValueTask Update(LightColorCollection lights)
+    public override void Update(LightColorCollection lights)
     {
         if (entertainment is null)
             throw new InvalidOperationException("Hue Light Handler not started.");
@@ -148,8 +148,6 @@ public class HueLightHandler : LightHandler<HueLightHandlerConfig>
         }
 
         entertainment.Send(channels);
-
-        return new();
     }
 
     public override async ValueTask<TimeSpan?> Signal(LightId lightId, NDPColor color)

@@ -130,6 +130,13 @@ internal class ScreenMimicLightHandler : BaseScreenLightHandler
 
         if (colors.Count < 1)
             return null; // Horizontal gradient canvas will crash if colors.Count < 1
-        return new RenderMeta(typeof(HorizontalGradientCanvas));
+
+        Type gradientCanvasType = Config.Variant switch
+        {
+            ScreenHorizontalLightsVariant.Continuous => typeof(HorizontalGradientCanvas),
+            ScreenHorizontalLightsVariant.FixedWidth => typeof(FixedWidthHorizontalGradientCanvas),
+            var v => throw new InvalidOperationException($"Invalid variant: {v}")
+        };
+        return new RenderMeta(gradientCanvasType);
     }
 }

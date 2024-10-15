@@ -281,8 +281,6 @@
 
     NDiscoPlusService? ndpService = null;
 
-    readonly List<ValueTask> lightHandlerUpdates = new();
-
     private CancellationTokenSource? _playerTaskCancellation = null;
     private Task? _playerTask = null;
 
@@ -385,6 +383,7 @@
     {
         // Fix back navigation breaking background gradient by force loading (which makes the app force load when navigating backwards)
         // UPDATE: Back navigation doesn't break background gradient anymore but spotify player state is duplicated during back navigation
+        // UPDATE 2: We now cancel the Spotify player
         navigationManager.NavigateTo("./settings");
     }
 
@@ -620,20 +619,7 @@
 
         // Update colors even if no data is available (to keep the connection on)
         foreach (LightHandler handler in lightHandling.Handlers)
-        {
-            ValueTask updateTask = handler.Update(lightColors);
-            if (!updateTask.IsCompleted)
-                lightHandlerUpdates.Add(updateTask);
-            else
-                await updateTask; // if task is already completed (used synchronous ValueTask<T>), do not bother adding it to the list and await for any errors instead
-        }
-
-        // Remove finished updates (pop from top as it's faster than removing all finished values in the middle of the list)
-        while (lightHandlerUpdates.Count > 0 && lightHandlerUpdates[0].IsCompleted)
-        {
-            await lightHandlerUpdates[0]; // await so that we get any errors that might have happened.
-            lightHandlerUpdates.RemoveAt(0);
-        }
+            handler.Update(lightColors);
 
         StateHasChanged();
     }
