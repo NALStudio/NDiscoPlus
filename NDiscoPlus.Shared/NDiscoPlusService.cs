@@ -19,9 +19,12 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace NDiscoPlus.Shared;
 
-public class NDiscoPlusService : IDisposable
+public class NDiscoPlusService
 {
-    private HttpClient? http = null;
+    // HttpClient should be thread-safe
+    // Use a lazy-loaded global HttpClient to avoid socket exhaustion
+    private static HttpClient? http = null;
+
     readonly Random random = new();
 
     private NDPColorPalette ModifyPaletteForEffects(NDiscoPlusArgs args, NDPColorPalette palette)
@@ -151,13 +154,8 @@ public class NDiscoPlusService : IDisposable
     }
 
     [MemberNotNull(nameof(http))]
-    private void LazyLoadHttpClient()
+    private static void LazyLoadHttpClient()
     {
         http ??= new();
-    }
-
-    public void Dispose()
-    {
-        http?.Dispose();
     }
 }
