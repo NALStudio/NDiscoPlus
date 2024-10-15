@@ -29,7 +29,7 @@ internal class ColorSwitchEffect : NDPEffect
         if (channel is null)
             return;
 
-        double beatsPerAnimationDouble = (double)(2 * ctx.Section.Tempo.TimeSignature) / channel.Lights.Count;
+        double beatsPerAnimationDouble = ctx.Section.Tempo.TimeSignature / (double)channel.Lights.Count;
 
         int beatsPerAnimation;
         int lightsPerAnimation;
@@ -45,7 +45,7 @@ internal class ColorSwitchEffect : NDPEffect
             Debug.Assert(beatsPerAnimationDouble > 0);
 
             beatsPerAnimation = 1;
-            lightsPerAnimation = (int)(1 / beatsPerAnimationDouble);
+            lightsPerAnimation = (int)(1d / beatsPerAnimationDouble);
         }
 
         Dictionary<LightId, NDPColor?> colors;

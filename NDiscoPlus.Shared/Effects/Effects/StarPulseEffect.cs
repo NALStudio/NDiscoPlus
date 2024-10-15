@@ -27,8 +27,8 @@ internal class StarPulseEffect : NDPEffect
         int fadeDurationSeconds = totalLightCount switch
         {
             <= 6 => 1,
-            <= 10 => 3,
-            _ => 5
+            <= 10 => 2,
+            _ => 4
         };
 
         return new(light, position, duration: TimeSpan.Zero, _kPulseColor)
