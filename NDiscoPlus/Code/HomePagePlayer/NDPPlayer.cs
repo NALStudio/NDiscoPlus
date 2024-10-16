@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using NDiscoPlus.Code.LightHandlers;
+using NDiscoPlus.Code.LightHandlers.Screen;
 using NDiscoPlus.Shared;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Spotify.Models;
@@ -16,7 +17,9 @@ using System.Threading.Tasks;
 namespace NDiscoPlus.Code.HomePagePlayer;
 internal partial class NDPPlayer : IDisposable
 {
-    private const int _kTargetFps = 75;
+    // Use a really high fps since if a frame is missed
+    // PeriodicTimer will wait for the next tick instead of trying to catch up
+    public const int TargetFps = 75;
 
     private readonly SpotifyPlayer spotify;
     private readonly PlayerData player;
@@ -24,24 +27,29 @@ internal partial class NDPPlayer : IDisposable
 
     private readonly object lightsLock = new();
     private LightData? lights;
+    private ImmutableArray<BaseScreenLightHandler>? screenLightHandlers;
 
     private readonly object sharedLock = new();
     private SharedData shared;
-    public SharedData Data
+
+    private readonly FpsLogger logger;
+
+    public SharedData GetData()
     {
-        get
+        SharedData shared;
+        lock (sharedLock)
         {
-            lock (sharedLock)
-            {
-                return shared;
-            }
+            shared = this.shared;
         }
+        return shared;
     }
 
-    public NDPPlayer(SpotifyClient spotify, ILogger<SpotifyWebPlayer> playerLogger)
+    public NDPPlayer(SpotifyClient spotify, ILogger<NDPPlayer> logger, ILogger<SpotifyWebPlayer> playerLogger)
     {
         this.spotify = new SpotifyWebPlayer(spotify, logger: playerLogger);
         player = new(spotify);
+
+        this.logger = new FpsLogger(logger, measurePeriodSeconds: 3);
 
         lightInterpreter = new();
     }
@@ -73,6 +81,7 @@ internal partial class NDPPlayer : IDisposable
         {
             lights = this.lights;
             this.lights = null;
+            screenLightHandlers = null;
         }
 
         return lights;
@@ -80,7 +89,7 @@ internal partial class NDPPlayer : IDisposable
 
     private async Task InternalRun(CancellationToken cancellationToken = default)
     {
-        await foreach (SpotifyPlayerContext? context in spotify.ListenAsync(_kTargetFps, cancellationToken: cancellationToken))
+        await foreach (SpotifyPlayerContext? context in spotify.ListenAsync(TargetFps, cancellationToken: cancellationToken))
             UpdateContext(context);
     }
 
@@ -115,23 +124,30 @@ internal partial class NDPPlayer : IDisposable
 
         foreach (LightHandler lh in lights.Handlers)
             lh.Update(lightColors);
+
+        // Only set light handlers once they have been updated the first time
+        screenLightHandlers ??= lights.Handlers.Where(static lh => lh is BaseScreenLightHandler)
+                                               .Cast<BaseScreenLightHandler>()
+                                               .ToImmutableArray();
     }
 
     private LightColorCollection RunInterpreter(SpotifyPlayerContext ctx, NDPData data)
     {
         LightInterpreterResult result = lightInterpreter.Update(ctx.Progress, data);
-        // TODO: log fps
+
+        logger.Tick();
+
         return result.Lights;
     }
 
     private void SetSharedData(SpotifyPlayerContext? ctx)
     {
-        NDPColorPalette? palette = player.Current.RequestPalette();
+        DataRecord.ColorPaletteData? palette = player.Current.RequestPalette();
         _ = player.Next.RequestPalette(); // pre-request palette for next track
 
         lock (sharedLock)
         {
-            shared = new(ctx, palette);
+            shared = new(ctx, palette?.Palette, palette?.Gradient, screenLightHandlers);
         }
     }
 
@@ -139,7 +155,7 @@ internal partial class NDPPlayer : IDisposable
     {
         if (player.Current.Track?.Id != current?.Id)
         {
-            if (player.Current.Track?.Id == player.Next.Track?.Id)
+            if (player.Next.Track?.Id == current?.Id)
                 player.Current.CopyFrom(player.Next);
             else
                 player.Current.Reset(current);

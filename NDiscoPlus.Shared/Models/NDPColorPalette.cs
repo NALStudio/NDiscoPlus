@@ -41,7 +41,6 @@ public readonly struct NDPColorPalette : IReadOnlyList<NDPColor>
 
     public readonly IList<NDPColor> Colors => colors;
 
-
     public IEnumerator<NDPColor> GetEnumerator() => ((IEnumerable<NDPColor>)colors).GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

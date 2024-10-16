@@ -4,6 +4,7 @@ using NDiscoPlus.Components.Elements.GradientCanvas;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
 namespace NDiscoPlus.Code.LightHandlers.Screen;
@@ -119,19 +120,14 @@ internal class ScreenLightHandler : BaseScreenLightHandler
         return new(l);
     }
 
-    protected override RenderMeta? RenderUpdate(LightColorCollection lightColors, ref readonly Dictionary<string, object> componentArgs)
+    protected override RenderMeta? RenderUpdate(LightColorCollection lightColors)
     {
-        if (!componentArgs.TryGetValue("Colors", out object? colorsList))
-        {
-            colorsList = Enumerable.Repeat(Config.ColorGamut.GamutBlack(), (int)Config.LightCount).ToList();
-            componentArgs.Add("Colors", colorsList);
-        }
+        NDPColor[] colors = new NDPColor[(int)Config.LightCount];
 
-        List<NDPColor> colors = (List<NDPColor>)colorsList;
         foreach ((ScreenLightId light, NDPColor color) in lightColors.OfType<ScreenLightId>()) // get lights of correct type
-            colors![light.Index] = color;
+            colors[light.Index] = color;
 
-        return new(typeof(CornerGradientCanvas));
+        return new(typeof(CornerGradientCanvas), ImmutableCollectionsMarshal.AsImmutableArray(colors));
     }
 
     public override ValueTask Stop()

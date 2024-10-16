@@ -12,24 +12,13 @@ namespace NDiscoPlus.Shared.Models;
 
 public class NDiscoPlusArgs
 {
-    public NDiscoPlusArgs(SpotifyPlayerTrack track, TrackAudioFeatures features, TrackAudioAnalysis analysis, EffectConfig effects, ImmutableArray<LightRecord> lights)
-    {
-        Track = track;
+    public required SpotifyPlayerTrack Track { get; init; }
 
-        Features = features;
-        Analysis = analysis;
+    public required TrackAudioFeatures Features { get; init; }
+    public required TrackAudioAnalysis Analysis { get; init; }
 
-        Effects = effects;
-        Lights = lights;
-    }
-
-    public SpotifyPlayerTrack Track { get; }
-
-    public TrackAudioFeatures Features { get; }
-    public TrackAudioAnalysis Analysis { get; }
-
-    public EffectConfig Effects { get; }
-    public ImmutableArray<LightRecord> Lights { get; }
+    public required EffectConfig Effects { get; init; }
+    public required ImmutableArray<LightRecord> Lights { get; init; }
 
     public bool AllowHDR { get; init; } = true;
     /// <summary>

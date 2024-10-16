@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using ColorPosition = NDiscoPlus.Components.Elements.GradientCanvas.HorizontalGradientCanvas.ColorPosition;
@@ -91,18 +92,10 @@ internal class ScreenMimicLightHandler : BaseScreenLightHandler
         return new(valid);
     }
 
-    protected override RenderMeta? RenderUpdate(LightColorCollection lights, ref readonly Dictionary<string, object> componentArgs)
+    protected override RenderMeta? RenderUpdate(LightColorCollection lights)
     {
         if (lightPositions is null)
             throw new InvalidOperationException("ScreenMimicLightHandler was not started! (OnAfterStart not called)");
-
-        if (!componentArgs.TryGetValue("Colors", out object? colorsList))
-        {
-            colorsList = new List<ColorPosition>();
-            componentArgs.Add("Colors", colorsList);
-        }
-
-        List<ColorPosition> colors = (List<ColorPosition>)colorsList;
 
         double left = Config.LightMetrics.Left;
         double right = Config.LightMetrics.Right;
@@ -110,7 +103,10 @@ internal class ScreenMimicLightHandler : BaseScreenLightHandler
         ColorGamut colorGamut = Config.ColorGamut;
         double brightnessMultiplier = Config.BrightnessMultiplier;
 
-        colors.Clear();
+        // Keep track of count manually instead of using a list
+        // so that we can use ImmutableCollectionsMarshal to turn this into an immutable array
+        ColorPosition[] colors = new ColorPosition[lightPositions.Count];
+        int colorsCount = 0;
         foreach (KeyValuePair<LightId, NDPColor> l in lights)
         {
             if (!lightPositions.TryGetValue(l.Key, out LightPosition lightPos))
@@ -125,10 +121,13 @@ internal class ScreenMimicLightHandler : BaseScreenLightHandler
                 color = new NDPColor(color.X, color.Y, color.Brightness * brightnessMultiplier);
             color = color.Clamp(colorGamut);
 
-            colors.Add(new ColorPosition(pos, color));
+            colors[colorsCount] = new ColorPosition(pos, color);
+            colorsCount++;
         }
 
-        if (colors.Count < 1)
+        Debug.Assert(colorsCount == colors.Length, "Some lights were missing color data.");
+
+        if (colors.Length < 1)
             return null; // Horizontal gradient canvas will crash if colors.Count < 1
 
         Type gradientCanvasType = Config.Variant switch
@@ -137,6 +136,6 @@ internal class ScreenMimicLightHandler : BaseScreenLightHandler
             ScreenHorizontalLightsVariant.FixedWidth => typeof(FixedWidthHorizontalGradientCanvas),
             var v => throw new InvalidOperationException($"Invalid variant: {v}")
         };
-        return new RenderMeta(gradientCanvasType);
+        return new RenderMeta(gradientCanvasType, ImmutableCollectionsMarshal.AsImmutableArray(colors));
     }
 }

@@ -1,4 +1,5 @@
-﻿using NDiscoPlus.Shared;
+﻿using NDiscoPlus.Code.Models;
+using NDiscoPlus.Shared;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Spotify.Models;
@@ -15,6 +16,8 @@ internal partial class NDPPlayer
 {
     private class DataRecord
     {
+        public readonly record struct ColorPaletteData(NDPColorPalette? Palette, FourColorGradient? Gradient);
+
         // SoitufyClient is hopefully thread-safe...
         private readonly SpotifyClient spotify;
 
@@ -25,7 +28,7 @@ internal partial class NDPPlayer
 
         public SpotifyPlayerTrack? Track { get; private set; }
 
-        private Task<NDPColorPalette?>? palette;
+        private Task<ColorPaletteData>? palette;
         private Task<NDPData>? data;
 
         public void Reset(SpotifyPlayerTrack? newTrack)
@@ -43,30 +46,52 @@ internal partial class NDPPlayer
             this.data = data.data;
         }
 
-        private static async Task<NDPColorPalette?> GetPalette(SpotifyPlayerTrack track)
+        private static async Task<ColorPaletteData> GetPalette(SpotifyPlayerTrack track)
         {
-            return await new NDiscoPlusService().FetchImagePalette(track);
+            NDPColorPalette? palette = await new NDiscoPlusService().FetchImagePalette(track);
+
+            FourColorGradient? gradient;
+            if (palette is NDPColorPalette p)
+                gradient = FourColorGradient.TryCreateFromPalette(p);
+            else
+                gradient = null;
+
+            return new ColorPaletteData(palette, gradient);
         }
 
         // Use ImmutableArray instead of IEnumerable since this function is threaded and we don't want to have any thread-safety issues 
-        private static async Task<NDPData> GetData(SpotifyClient spotify, SpotifyPlayerTrack track, ImmutableArray<LightRecord> lights)
+        private async Task<NDPData> GetData(SpotifyClient spotify, SpotifyPlayerTrack track, ImmutableArray<LightRecord> lights)
         {
+            if (this.palette is null)
+                RequestPalette();
+            ColorPaletteData palette = await this.palette!;
+
             TrackAudioFeatures features = await spotify.Tracks.GetAudioFeatures(track.Id);
             TrackAudioAnalysis analysis = await spotify.Tracks.GetAudioAnalysis(track.Id);
 
-            NDiscoPlusArgs args = new(track, features, analysis, EffectConfig.Default, lights);
+            NDiscoPlusArgs args = new()
+            {
+                Track = track,
+                Features = features,
+                Analysis = analysis,
+                Effects = EffectConfig.Default,
+                Lights = lights,
+
+                ReferencePalette = palette.Palette
+            };
+
             return new NDiscoPlusService().ComputeData(args);
         }
 
         /// <summary>
         /// Request NDPColorPalette. Return value will be null until data is available.
         /// </summary>
-        public NDPColorPalette? RequestPalette()
+        public ColorPaletteData? RequestPalette()
         {
             if (Track is null)
                 return null;
 
-            palette ??= GetPalette(Track);
+            palette ??= Task.Run(() => GetPalette(Track));
 
             if (palette.IsCompleted)
                 return palette.Result;
