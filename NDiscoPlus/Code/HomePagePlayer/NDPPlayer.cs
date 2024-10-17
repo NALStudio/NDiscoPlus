@@ -5,6 +5,7 @@ using NDiscoPlus.Shared;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Spotify.Models;
 using NDiscoPlus.Spotify.Players;
+using NDiscoPlus.Spotify.Players.WebPlayer;
 using SpotifyAPI.Web;
 using System;
 using System.Collections.Generic;
@@ -44,9 +45,9 @@ internal partial class NDPPlayer : IDisposable
         return shared;
     }
 
-    public NDPPlayer(SpotifyClient spotify, ILogger<NDPPlayer> logger, ILogger<SpotifyWebPlayer> playerLogger)
+    public NDPPlayer(SpotifyClient spotify, ILogger<NDPPlayer> logger, ILogger<NewSpotifyWebPlayer> playerLogger)
     {
-        this.spotify = new SpotifyWebPlayer(spotify, logger: playerLogger);
+        this.spotify = new NewSpotifyWebPlayer(spotify, logger: playerLogger);
         player = new(spotify);
 
         this.logger = new FpsLogger(logger, measurePeriodSeconds: 3);

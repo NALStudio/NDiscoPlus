@@ -54,13 +54,17 @@ public class NDiscoPlusService
                 newPalette.Add(col);
         }
 
+        // If there aren't enough colors, get a random default palette
+        // We don't try to mix these two palettes together as usually it just happens that
+        // a really unsaturated color is paired with a really saturated one
+        // which I don't want
         if (newPalette.Count < MinPaletteCount)
             return GetRandomDefaultPalette(args);
 
         if (newPalette.Count > MaxPaletteCount)
-            return new NDPColorPalette(palette.Take(MaxPaletteCount));
+            return new NDPColorPalette(newPalette.Take(MaxPaletteCount));
 
-        return palette;
+        return new NDPColorPalette(newPalette);
     }
 
     public NDPData ComputeData(NDiscoPlusArgs args)

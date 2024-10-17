@@ -57,22 +57,14 @@ public class SpotifyPlayerTrack
 
 public class SpotifyPlayerContext
 {
-    public SpotifyPlayerContext(TimeSpan progress, bool isPlaying, SpotifyPlayerTrack track, SpotifyPlayerTrack? nextTrack)
-    {
-        Progress = progress;
-        IsPlaying = isPlaying;
-        Track = track;
-        NextTrack = nextTrack;
-    }
-
-    public TimeSpan Progress { get; }
-    public bool IsPlaying { get; }
-    public SpotifyPlayerTrack Track { get; }
+    public required TimeSpan Progress { get; init; }
+    public required bool IsPlaying { get; init; }
+    public required SpotifyPlayerTrack Track { get; init; }
 
     /// <summary>
     /// The next track information is supplied once we are almost certain what the next track is going to be.
     /// This depends on the implementation:
-    ///     - Spotify web player gives this info in the last 20 seconds of the currently playing song and updates it every 5 seconds.
+    ///     - Both Spotify web players give this info in the last 20 seconds of the currently playing song and update it every 5 seconds.
     /// </summary>
-    public SpotifyPlayerTrack? NextTrack { get; }
+    public SpotifyPlayerTrack? NextTrack { get; init; } = null;
 }

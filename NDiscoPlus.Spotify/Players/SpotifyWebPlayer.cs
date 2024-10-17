@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace NDiscoPlus.Spotify.Players;
 
+[Obsolete("Deprecated along with SpotifyWebPlayer")]
 record PlayingContext
 {
     public PlayingContext(DateTimeOffset fetchTimestamp, CurrentlyPlayingContext? context, FullTrack? track)
@@ -32,6 +33,7 @@ record PlayingContext
     }
 }
 
+[Obsolete("Use NewSpotifyWebPlayer instead.")]
 public class SpotifyWebPlayer : SpotifyPlayer
 {
     // how many seconds there should be between polls (very coarse; elapsed time is computed very inaccurately)
@@ -268,11 +270,12 @@ public class SpotifyWebPlayer : SpotifyPlayer
             }
         }
 
-        return new SpotifyPlayerContext(
-            progress: progress,
-            isPlaying: lastContext.Context.IsPlaying,
-            track: SpotifyPlayerTrack.FromSpotifyTrack(lastContext.Track),
-            nextTrack: SpotifyPlayerTrack.FromSpotifyTrackOrNull(nextTrack)
-        );
+        return new SpotifyPlayerContext()
+        {
+            Progress = progress,
+            IsPlaying = lastContext.Context.IsPlaying,
+            Track = SpotifyPlayerTrack.FromSpotifyTrack(lastContext.Track),
+            NextTrack = SpotifyPlayerTrack.FromSpotifyTrackOrNull(nextTrack)
+        };
     }
 }

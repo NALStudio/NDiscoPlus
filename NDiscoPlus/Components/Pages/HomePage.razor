@@ -22,6 +22,7 @@
 @using NDiscoPlus.Spotify.Models
 @using NDiscoPlus.Spotify.Players
 @using NDiscoPlus.Components;
+@using NDiscoPlus.Spotify.Players.WebPlayer
 @using SpotifyAPI.Web
 @using System.Diagnostics
 @using System.Text.Json
@@ -37,7 +38,7 @@
 @inject NavigationManager navigationManager
 @inject ILogger<HomePage> logger
 @inject ILogger<NDPPlayer> playerLogger
-@inject ILogger<SpotifyWebPlayer> spotifyPlayerLogger
+@inject ILogger<NewSpotifyWebPlayer> spotifyPlayerLogger
 @inject IJSRuntime JSRuntime
 @inject ISnackbar Snackbar
 @inject SpotifyService Spotify
@@ -474,7 +475,8 @@
 
         await Task.Delay(500);
 
-        NDPPlayer.LightData? lights = player!.StopLights();
+        // player might be null when page has been disposed
+        NDPPlayer.LightData? lights = player?.StopLights();
         if (lights is NDPPlayer.LightData ld)
         {
             foreach (LightHandler handler in ld.Handlers)
