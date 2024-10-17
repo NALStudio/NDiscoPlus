@@ -9,6 +9,8 @@
 @code {
     private IDictionary<string, object> GetComponentParameters()
     {
+        // Do not cache this dictionary as when the config changes,
+        // we hold a reference to the original config instead
         return new Dictionary<string, object>()
         {
             { "Config", Config },

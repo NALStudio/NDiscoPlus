@@ -132,7 +132,7 @@ public partial class NewSpotifyWebPlayer : SpotifyPlayer
             // even though the song doesn't change. We still clear the state as the progress does jump a bit here
             // but we do not want to reset the clock so that it adjusts smoothly to the new time instead of jumping immediately and making my effects stutter
             long progressChangedAmount = 0L;
-            if (previousState is not null)
+            if (state.Value is not null && previousState?.Value is not null)
             {
                 long oldProgress = ExtrapolateStateProgress(previousState, timestamp);
                 long newProgress = ExtrapolateStateProgress(state, timestamp);
