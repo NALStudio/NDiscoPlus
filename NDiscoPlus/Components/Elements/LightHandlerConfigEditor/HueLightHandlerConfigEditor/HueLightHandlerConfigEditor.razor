@@ -7,17 +7,13 @@
 <DynamicComponent Type="@GetSubEditorType()" Parameters="@GetComponentParameters()" />
 
 @code {
-    private ImmutableDictionary<string, object>? _cachedComponentParameters = null;
-
     private IDictionary<string, object> GetComponentParameters()
     {
-        _cachedComponentParameters ??= new Dictionary<string, object>()
+        return new Dictionary<string, object>()
         {
             { "Config", Config },
             { "ConfigHasChanged", ((Action)ConfigHasChanged) }
-        }.ToImmutableDictionary();
-
-        return _cachedComponentParameters;
+        };
     }
 
     private Type GetSubEditorType()
