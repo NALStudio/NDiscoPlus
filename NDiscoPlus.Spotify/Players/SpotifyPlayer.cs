@@ -9,7 +9,7 @@ public abstract class SpotifyPlayer : IDisposable
 {
     private PeriodicTimer? _timer;
 
-    protected abstract ValueTask Init();
+    protected abstract ValueTask Init(int updateFrequency);
     protected abstract SpotifyPlayerContext? Update(); // Synchronous so that the timer isn't blocked by slow requests etc.
 
     public async IAsyncEnumerable<SpotifyPlayerContext?> ListenAsync(int frequency, [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -19,7 +19,7 @@ public abstract class SpotifyPlayer : IDisposable
         // initialize timer before awaiting so that we dispose correctly.
         _timer = new(TimeSpan.FromSeconds(periodSeconds));
 
-        await Init();
+        await Init(frequency);
 
         while (await _timer.WaitForNextTickAsync(cancellationToken))
         {

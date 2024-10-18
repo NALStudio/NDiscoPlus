@@ -26,15 +26,15 @@ public partial class NewSpotifyWebPlayer : SpotifyPlayer
     /// The modified timestamp provided by Spotify.
     /// </summary>
     private long? statesLastModifiedTimestampMs = null;
-    private bool spotifyIsFuckingWithUs = false;
     private Queue<Request<PlaybackState?>> states = new(capacity: Constants.ContextWindowSize);
 
     private long? clockLastModifiedTimestampMs = null;
-    private AdjustingClock clock = new();
+    private AdjustingClock? clock;
     private long clockTicksBehind = 0L;
 
-    protected override ValueTask Init()
+    protected override ValueTask Init(int updateFrequency)
     {
+        clock = new AdjustingClock(logger, updateFrequency);
         return ValueTask.CompletedTask;
     }
 
@@ -69,9 +69,9 @@ public partial class NewSpotifyWebPlayer : SpotifyPlayer
         );
     }
 
-    private void UpdateState(long timestamp)
+    private void UpdateState(long timestamp, out bool trackHasChanged)
     {
-        if (ShouldUpdateState(timestamp, out long pollRate))
+        if (ShouldUpdateState(timestamp, out long? pollRate))
         {
             if (logger is not null)
             {
@@ -80,7 +80,7 @@ public partial class NewSpotifyWebPlayer : SpotifyPlayer
 
                 logger.LogInformation(
                     "Fetching new state... (rate: {:0.0} s, clock: {:0.000} ms {})",
-                    TimeConversions.AsTotalSeconds(pollRate),
+                    pollRate.HasValue ? TimeConversions.AsTotalSeconds(pollRate.Value) : null,
                     Math.Abs(msBehind),
                     aheadBehind
                 );
@@ -89,6 +89,7 @@ public partial class NewSpotifyWebPlayer : SpotifyPlayer
         }
 
         // Handle finished fetch
+        trackHasChanged = false;
         if (currentFetch?.IsCompleted == true)
         {
             Request<PlaybackState?>? state;
@@ -105,13 +106,13 @@ public partial class NewSpotifyWebPlayer : SpotifyPlayer
             currentFetch = null;
             if (state is not null)
             {
-                UpdateQueueWithNewState(timestamp, state, previousFetch);
+                UpdateQueueWithNewState(state, previousFetch, ref trackHasChanged);
                 previousFetch = state;
             }
         }
     }
 
-    private void UpdateQueueWithNewState(long timestamp, Request<PlaybackState?> state, Request<PlaybackState?>? previousState)
+    private void UpdateQueueWithNewState(Request<PlaybackState?> state, Request<PlaybackState?>? previousState, ref bool trackHasChanged)
     {
         long? stateLastModTimestamp = state.Value?.LastEditedTimestampMs;
 
@@ -128,40 +129,47 @@ public partial class NewSpotifyWebPlayer : SpotifyPlayer
             states.Clear();
             statesLastModifiedTimestampMs = stateLastModTimestamp;
 
-            // Spotify sometimes randomly (usually at the start of a song) changes the last edited timestamp
-            // even though the song doesn't change. We still clear the state as the progress does jump a bit here
-            // but we do not want to reset the clock so that it adjusts smoothly to the new time instead of jumping immediately and making my effects stutter
-            long progressChangedAmount = 0L;
-            if (state.Value is not null && previousState?.Value is not null)
-            {
-                long oldProgress = ExtrapolateStateProgress(previousState, timestamp);
-                long newProgress = ExtrapolateStateProgress(state, timestamp);
-                progressChangedAmount = newProgress - oldProgress; // newProgress > oldProgress => progressChangedAmount > 0
-
-                if (Math.Abs(progressChangedAmount) < Constants.SpotifyIsFuckingWithUsTolerance)
-                    spotifyIsFuckingWithUs = true;
-            }
-
-            logger?.LogInformation("Playback state changed. (progress moved: {:0.000} s)", progressChangedAmount / (decimal)TimeConversions.TicksPerSecond);
+            if (state.Value?.Track.Id != previousState?.Value?.Track.Id)
+                trackHasChanged = true;
         }
 
         states.Enqueue(state);
     }
 
-    private bool ShouldUpdateState(long timestamp, out long statePollRate)
+    private bool TrackHasEndedSinceFetch(long timestamp, Request<PlaybackState?> fetch)
     {
-        statePollRate = 0L;
+        if (fetch.Value is null)
+            return false;
+
+        // Use received timestamp so that we determine track to have ended late rather than early
+        // and thus we don't accidentally spam the server with unnecessary requests
+        long elapsedSince = timestamp - fetch.ReceivedTimestamp;
+        long progressThen = fetch.Value.ProgressTicks;
+
+        long progressNow = progressThen + elapsedSince;
+        return TimeConversions.AsTimeSpan(progressNow) > fetch.Value.Track.Length;
+    }
+
+    private bool ShouldUpdateState(long timestamp, out long? statePollRate)
+    {
+        statePollRate = null;
 
         if (currentFetch is not null)
             return false;
 
         if (previousFetch is not null)
         {
-            statePollRate = Constants.StatePollRate(states.Count);
+            long pollRate = Constants.StatePollRate(states.Count);
             long elapsedTicks = timestamp - previousFetch.SentTimestamp;
 
-            if (elapsedTicks < statePollRate)
+            // When track has ended, start polling for next song immediately
+            // so that the played doesn't lag behind
+            if (TrackHasEndedSinceFetch(timestamp, previousFetch))
+                pollRate = 0L;
+
+            if (elapsedTicks < pollRate)
                 return false;
+            statePollRate = pollRate;
         }
 
         return true;
@@ -195,7 +203,7 @@ public partial class NewSpotifyWebPlayer : SpotifyPlayer
         return (progressMs ?? 0) * TimeConversions.TicksPerMs;
     }
 
-    private long ComputeProgress(long timestamp)
+    private long ComputeProgress(long timestamp, bool trackHasChanged)
     {
         Request<PlaybackState?>? latestState = previousFetch;
 
@@ -212,23 +220,19 @@ public partial class NewSpotifyWebPlayer : SpotifyPlayer
         {
             if (statesLastModifiedTimestampMs != clockLastModifiedTimestampMs)
             {
+                decimal? progressBefore = null;
+                if (clock!.HasBeenReset)
+                    progressBefore = clock!.GetProgress(timestamp) / (decimal)TimeConversions.TicksPerSecond;
 
-                if (!spotifyIsFuckingWithUs)
-                {
-                    logger?.LogInformation("Resetting clock...");
-                    clock.Reset(timestamp, progress);
-                }
-                else
-                {
-                    logger?.LogInformation("Clock reset skipped.");
-                }
-
+                clock!.Reset(timestamp, progress, trackHasChanged: trackHasChanged);
                 clockLastModifiedTimestampMs = statesLastModifiedTimestampMs;
-                spotifyIsFuckingWithUs = false;
+
+                decimal progressAfter = clock.GetProgress(timestamp) / (decimal)TimeConversions.TicksPerSecond;
+                logger?.LogInformation("Clock reset. (before: {:0.000} s, after: {:0.000} s)", progressBefore, progressAfter);
             }
             else
             {
-                clockTicksBehind = clock.AdjustClock(timestamp, progress);
+                clockTicksBehind = clock!.AdjustClock(timestamp, progress);
                 // logger?.LogInformation("{:0.000} ms", clockTicksBehind / (decimal)TimeConversions.TicksPerMs);
             }
 
@@ -350,8 +354,8 @@ public partial class NewSpotifyWebPlayer : SpotifyPlayer
     {
         long timestamp = Stopwatch.GetTimestamp();
 
-        UpdateState(timestamp);
-        long progress = ComputeProgress(timestamp);
+        UpdateState(timestamp, out bool trackHasChanged);
+        long progress = ComputeProgress(timestamp, trackHasChanged);
         UpdateNextTrack(timestamp, progress);
         return ConstructResponse(progress);
     }

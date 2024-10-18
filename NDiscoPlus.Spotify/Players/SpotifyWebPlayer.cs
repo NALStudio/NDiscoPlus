@@ -161,7 +161,7 @@ public class SpotifyWebPlayer : SpotifyPlayer
             Array.Fill(nextTrackFetches, null);
     }
 
-    protected override async ValueTask Init()
+    protected override async ValueTask Init(int updateFrequency)
     {
         await FetchPlayer();
     }
