@@ -82,7 +82,7 @@ public sealed class ChunkedEffectsCollection
     private bool TryGetChunk(TimeSpan time, [MaybeNullWhen(false)] out Chunk chunk)
     {
         int index = ToChunkIndex(time);
-        if (index >= chunks.Length)
+        if (index < 0 || index >= chunks.Length)
         {
             chunk = default;
             return false;
