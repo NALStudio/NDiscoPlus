@@ -1,0 +1,77 @@
+﻿@using Excubo.Blazor.Canvas
+@using Excubo.Blazor.Canvas.Contexts
+@using NDiscoPlus.Shared
+@using NDiscoPlus.Shared.Helpers
+@using NDiscoPlus.Shared.Models
+@using NDiscoPlus.Shared.Music
+@using NDiscoPlus.Spotify.Models
+@using SpotifyAPI.Web
+
+
+<Canvas style="@Style" width="@canvasWidth" height="@canvasHeight" @ref=_canvas />
+
+@code {
+    const int canvasWidth = 1000;
+    const int canvasHeight = 500;
+
+    public static readonly string[] StatNames = new string[] {
+        "Metadata",
+        "Segment Decibels",
+        "Segment Distances"
+    };
+
+    [Parameter]
+    public int StatIndex { get; set; } = 0;
+
+    [Parameter]
+    public string Style { get; set; } = "";
+
+    [Parameter]
+    public SpotifyPlayerContext? Context { get; set; }
+
+    [Parameter]
+    public TrackAudioFeatures? Features { get; set; }
+
+    [Parameter]
+    public TrackAudioAnalysis? Analysis { get; set; }
+
+    protected Canvas? _canvas;
+
+    private Task? renderTask = null;
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Because unlike Blazor WASM, Blazor MAUI is multithreaded
+        // we must keep track of the render task
+        // to make sure no two renders are running concurrently
+        // or otherwise we seem to corrupt the entire JS engine :D
+        if (renderTask?.IsCompleted != false)
+            renderTask = Render();
+    }
+
+    private async Task Render()
+    {
+        if (Context is null || Features is null || Analysis is null)
+            throw new InvalidOperationException("Spotfiy Player Context, Track Features and Track Audio Analysis must all be provided!");
+
+        System.Diagnostics.Debug.Assert(_canvas is not null);
+        await using (Context2D ctx = await _canvas.GetContext2DAsync())
+        {
+            // Call must be patched or otherwise we get a "scanning line" when rendering
+            // as, as usual, the problem stems from the fact that Blazor MAUI can do multithreading
+            await using (Batch2D batch = ctx.CreateBatch())
+            {
+                TrackDebugCanvasRender render = StatIndex switch
+                {
+                    0 => new TrackDebugCanvasRenderMeta(batch, canvasWidth: canvasWidth, canvasHeight: canvasHeight, context: Context, features: Features, analysis: Analysis),
+                    1 => TrackDebugCanvasRenderSegments.DecibelsStyle(batch, canvasWidth: canvasWidth, canvasHeight: canvasHeight, context: Context, features: Features, analysis: Analysis),
+                    2 => TrackDebugCanvasRenderSegments.DistanceStyle(batch, canvasWidth: canvasWidth, canvasHeight: canvasHeight, context: Context, features: Features, analysis: Analysis),
+                    // 2 => new TrackDebugCanvasRenderTimbre(batch, canvasWidth: canvasWidth, canvasHeight: canvasHeight, context: Context, features: Features, analysis: Analysis),
+                    _ => throw new InvalidOperationException($"No renderer for stat index: {StatIndex}")
+                };
+
+                await batch.ClearRectAsync(0d, 0d, canvasWidth, canvasHeight);
+                await render.RenderAsync();
+            }
+        }
+    }
+}

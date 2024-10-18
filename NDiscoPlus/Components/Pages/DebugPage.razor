@@ -1,0 +1,125 @@
+﻿@page "/debug"
+@page "/debug/{pageIndex:int}"
+
+@using Microsoft.Extensions.Logging
+@using NDiscoPlus.Code
+@using NDiscoPlus.Components
+@using NDiscoPlus.Components.Elements
+@using NDiscoPlus.Components.Layout
+@using NDiscoPlus.Components.Elements.DebugCanvas
+@using NDiscoPlus.Components.Pages
+@using NDiscoPlus.Shared
+@using NDiscoPlus.Shared.Models
+@using NDiscoPlus.Spotify.Models
+@using NDiscoPlus.Spotify.Players
+@using NDiscoPlus.Spotify.Players.WebPlayer
+@using SpotifyAPI.Web
+
+@layout SpotifyLayout
+
+@inject ILogger<HomePage> logger
+@inject ILogger<NewSpotifyWebPlayer> playerLogger
+@inject NavigationManager navigationManager
+@inject SpotifyService Spotify
+
+@implements IAsyncDisposable
+
+<MudNavMenu Style="position:fixed;left:0;top:0">
+    @for (int i = 0; i < TrackDebugCanvas.StatNames.Length; i++)
+    {
+        // App crashes if I inline this variable inside MudNavLink
+        // no idea why :/
+        string name = TrackDebugCanvas.StatNames[i];
+        <MudNavLink Href="@($"/debug/{i}")">@name</MudNavLink>
+    }
+</MudNavMenu>
+<div style="width:100vw; height:100vh; align-content:center;">
+    @if (PageIndex is null)
+    {
+        <h3 style="text-align:center;">Redirecting...</h3>
+    }
+    else if (PageIndex.Value < 0 || PageIndex.Value >= TrackDebugCanvas.StatNames.Length)
+    {
+        <h3 style="text-align:center;">Invalid Page Index</h3>
+    }
+    else if(canvasCtx is null)
+    {
+        <h3 style="text-align:center;">No Track Data</h3>
+    }
+    else
+    {
+        <img width="256"
+            src="@canvasCtx.Context.Track.LargestImage.Url"
+            style="display:block; margin-left:auto; margin-right:auto;" />
+        <h3 style="text-align:center;">@canvasCtx.Context.Track.Name</h3>
+        <TrackDebugCanvas Style="display:block; margin-left:auto; margin-right:auto"
+                          StatIndex="@PageIndex.Value"
+                          Context="@canvasCtx.Context"
+                          Features="@canvasCtx.Features"
+                          Analysis="@canvasCtx.Analysis"
+                          />
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int? PageIndex { get; set; } = null;
+
+    CanvasContext? canvasCtx;
+
+    record CanvasContext(SpotifyPlayerContext Context, TrackAudioFeatures Features, TrackAudioAnalysis Analysis);
+
+    private CancellationTokenSource? _playerTaskCancellation = null;
+    private Task? _playerTask = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!PageIndex.HasValue)
+            navigationManager.NavigateTo("./debug/0", replace: true);
+
+        await Spotify.WaitForLogin();
+
+        _playerTaskCancellation = new();
+        _playerTask = StartPlayer(_playerTaskCancellation.Token);
+    }
+
+    async Task StartPlayer(CancellationToken cancellationToken = default)
+    {
+        if (!Spotify.IsLoggedIn)
+            throw new InvalidOperationException("Spotify not logged in.");
+
+        NewSpotifyWebPlayer player = new NewSpotifyWebPlayer(Spotify.Client, playerLogger);
+
+        (string trackId, TrackAudioFeatures features, TrackAudioAnalysis analysis)? analysis = null;
+
+        // We don't really need more than 50 fps
+        await foreach (SpotifyPlayerContext? context in player.ListenAsync(50, cancellationToken))
+        {
+            if (context is null) 
+            {
+                analysis = null;
+            }
+            else if (analysis?.trackId != context.Track.Id)
+            {
+                TrackAudioFeatures f = await Spotify.Client.Tracks.GetAudioFeatures(context.Track.Id);
+                TrackAudioAnalysis a = await Spotify.Client.Tracks.GetAudioAnalysis(context.Track.Id);
+                analysis = (context.Track.Id, f, a);
+            }
+
+            if (context is not null && analysis.HasValue)
+                canvasCtx = new CanvasContext(context, analysis.Value.features, analysis.Value.analysis);
+            else
+                canvasCtx = null;
+
+            StateHasChanged();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_playerTaskCancellation is not null)
+            await _playerTaskCancellation.CancelAsync();
+        if (_playerTask is not null)
+            await _playerTask;
+    }
+}

@@ -51,138 +51,148 @@
 -->
 
 <div @onmousemove="OnMouseMove" style=@AddCursorStyle("width:100vw; height:100vh; overflow: hidden;")>
-<div style="position:fixed;top:0;bottom:0;left:0;right:0;">
-    @if (data?.ScreenLightHandlers is ImmutableArray<BaseScreenLightHandler> screenLightHandlers)
-    {
-        foreach (BaseScreenLightHandler screenHandler in screenLightHandlers)
+    <div style="position:fixed;top:0;bottom:0;left:0;right:0;">
+        @if (data?.ScreenLightHandlers is ImmutableArray<BaseScreenLightHandler> screenLightHandlers)
         {
-            BaseScreenLightHandler.RenderData? renderData = screenHandler.Render(width: windowSize?.Width ?? 1920, height: windowSize?.Height ?? 1080);
-            if (renderData.HasValue)
+            foreach (BaseScreenLightHandler screenHandler in screenLightHandlers)
             {
-                <DynamicComponent Type="@(renderData.Value.ComponentType)" Parameters="@(renderData.Value.ComponentArgs)" />
+                BaseScreenLightHandler.RenderData? renderData = screenHandler.Render(width: windowSize?.Width ?? 1920, height: windowSize?.Height ?? 1080);
+                if (renderData.HasValue)
+                {
+                    <DynamicComponent Type="@(renderData.Value.ComponentType)" Parameters="@(renderData.Value.ComponentArgs)" />
+                }
             }
         }
-    }
-    else
-    {
-        <CornerGradientCanvas Colors="@(BestGradientOption.Colors)"
-                              Width="@(windowSize?.Width ?? 1920)"
-                              Height="@(windowSize?.Height ?? 1080)" />
-    }
-</div>
-<!-- padding-top:20vh and Justify.FlexStart since centering the item looks a bit stupid... Moving the elements slightly up looks nicer. -->
-<MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
-    @if(Context is not null) {
-        <MudImage
-            Src="@Context.Track.LargestImage.Url"
-            Width="256"
-            Height="256"/>
-    }
-    else
-    {
-        <div style="background:#1DB954;padding:64px">
+        else
+        {
+            <CornerGradientCanvas Colors="@(BestGradientOption.Colors)"
+                                  Width="@(windowSize?.Width ?? 1920)"
+                                  Height="@(windowSize?.Height ?? 1080)" />
+        }
+    </div>
+    <!-- padding-top:20vh and Justify.FlexStart since centering the item looks a bit stupid... Moving the elements slightly up looks nicer. -->
+    <MudStack AlignItems="AlignItems.Center" Justify="Justify.FlexStart" Style="padding-top:20vh;position:absolute;top:0;left:0;right:0;bottom:0;">
+        @if(Context is not null) {
             <MudImage
-                Src="./img/spotify_icon_white.svg"
-                Width="128"
-                Height="128"/>
+                Src="@Context.Track.LargestImage.Url"
+                Width="256"
+                Height="256"/>
+        }
+        else
+        {
+            <div style="background:#1DB954;padding:64px">
+                <MudImage
+                    Src="./img/spotify_icon_white.svg"
+                    Width="128"
+                    Height="128"/>
+            </div>
+        }
+        <div style="min-width:256px;">
+            <MudText Style="line-height:1.0; font-size:x-large;"><b>@(Context?.Track.Name ?? "Not Playing...")</b></MudText>
+            @if(Context is not null)
+            {
+                <MudText Style="font-size:medium;padding-bottom:1em">@string.Join(", ", Context.Track.Artists)</MudText>
+            }
         </div>
-    }
-    <div style="min-width:256px;">
-        <MudText Style="line-height:1.0; font-size:x-large;"><b>@(Context?.Track.Name ?? "Not Playing...")</b></MudText>
-        @if(Context is not null)
+        <div style="width:80%; max-width:512px; padding-bottom:64px">
+            @if(Context is not null)
+            {
+                <MudProgressLinear
+                    Value="@(Context.Progress.TotalSeconds)"
+                    Min="0"
+                    Max="@(Context.Track.Length.TotalSeconds)"
+                    Rounded="true"
+                    />
+                <MudStack Style="" Row="true" Justify="Justify.SpaceBetween">
+                    <MudText Style="line-height:2; font-size:small;">@(Context.Progress.ToString(TimespanFormat))</MudText>
+                    <MudText Style="line-height:2; font-size:small;">@(Context.Track.Length.ToString(TimespanFormat))</MudText>
+                </MudStack>
+            }
+        </div>
+        @if (!HideUI)
         {
-            <MudText Style="font-size:medium;padding-bottom:1em">@string.Join(", ", Context.Track.Artists)</MudText>
+            <MudButton StartIcon="@Icons.Material.Rounded.Lightbulb"
+                        Variant="@(isPlaying ? Variant.Outlined : Variant.Filled)"
+                        Size=Size.Large
+                        Color=MudBlazor.Color.Primary
+                        Disabled=@(!Spotify.IsLoggedIn || playStarting)
+                        OnClick=TogglePlay>
+                    @(isPlaying ? "Stop" : "Play")
+            </MudButton>
         }
-    </div>
-    <div style="width:80%; max-width:512px; padding-bottom:64px">
-        @if(Context is not null)
-        {
-            <MudProgressLinear
-                Value="@(Context.Progress.TotalSeconds)"
-                Min="0"
-                Max="@(Context.Track.Length.TotalSeconds)"
-                Rounded="true"
-                />
-            <MudStack Style="" Row="true" Justify="Justify.SpaceBetween">
-                <MudText Style="line-height:2; font-size:small;">@(Context.Progress.ToString(TimespanFormat))</MudText>
-                <MudText Style="line-height:2; font-size:small;">@(Context.Track.Length.ToString(TimespanFormat))</MudText>
-            </MudStack>
-        }
-    </div>
+    </MudStack>
     @if (!HideUI)
     {
-        <MudButton StartIcon="@Icons.Material.Rounded.Lightbulb"
-                    Variant="@(isPlaying ? Variant.Outlined : Variant.Filled)"
-                    Size=Size.Large
-                    Color=MudBlazor.Color.Primary
-                    Disabled=@(!Spotify.IsLoggedIn || playStarting)
-                    OnClick=TogglePlay>
-                @(isPlaying ? "Stop" : "Play")
-        </MudButton>
-    }
-</MudStack>
-@if (!HideUI)
-{
-    <MudStack Style="position:fixed; top:0; left:0; padding:16px">
-        <MudTooltip Text="Open Settings" Placement="Placement.Right" Delay="1000">
-            <MudIconButton Icon="@Icons.Material.Rounded.Settings"
-                            Size="Size.Large"
-                            OnClick="OpenSettings"
-                            Disabled="isPlaying" />
-        </MudTooltip>
-        <MudTooltip Text="Toggle Fullscreen" Placement="Placement.Right" Delay="1000">
-            <MudIconButton Icon="@(!focusMode.IsFocusModeEnabled ? Icons.Material.Rounded.Fullscreen : Icons.Material.Rounded.FullscreenExit)"
-                            Size="Size.Large"
-                            OnClick="ToggleFullscreen" />
-        </MudTooltip>
-        <MudTooltip Text="@($"Turn {(IsWakeLockEnabled ? "Off" : "On")} Wake Lock")" Placement="Placement.Right" Delay="1000">
-            <MudToggleIconButton Icon="@(Icons.Material.Rounded.Brightness4)"
-                                    ToggledIcon="@(Icons.Material.Rounded.Brightness5)"
+        <MudStack Style="position:fixed; top:0; left:0; padding:16px">
+            <MudTooltip Text="Open Settings" Placement="Placement.Right" Delay="1000">
+                <MudIconButton Icon="@Icons.Material.Rounded.Settings"
+                                Size="Size.Large"
+                                OnClick="OpenSettings"
+                                Disabled="isPlaying" />
+            </MudTooltip>
+            <MudTooltip Text="Toggle Fullscreen" Placement="Placement.Right" Delay="1000">
+                <MudIconButton Icon="@(!focusMode.IsFocusModeEnabled ? Icons.Material.Rounded.Fullscreen : Icons.Material.Rounded.FullscreenExit)"
+                                Size="Size.Large"
+                                OnClick="ToggleFullscreen" />
+            </MudTooltip>
+            <MudTooltip Text="@($"Turn {(IsWakeLockEnabled ? "Off" : "On")} Wake Lock")" Placement="Placement.Right" Delay="1000">
+                <MudToggleIconButton Icon="@(Icons.Material.Rounded.Brightness4)"
+                                        ToggledIcon="@(Icons.Material.Rounded.Brightness5)"
+                                        Size="Size.Large"
+                                        Toggled="IsWakeLockEnabled"
+                                        ToggledChanged="@SetWakeLock"/>
+            </MudTooltip>
+
+            @if (IsDebugEnabled)
+            {
+                <MudTooltip Text="DEBUG: Open Debug Canvas" Placement="Placement.Right" Delay="1000">
+                    <MudIconButton Icon="@(Icons.Material.Rounded.BugReport)"
+                                   Size="Size.Large"
+                                   OnClick="@OpenDebugCanvas" />
+                </MudTooltip>
+            }
+
+            @* Not yet implemented in MAUI Blazor version of this app
+            @if (DebugEnabled)
+            {
+                <MudTooltip Text="DEBUG: Open Effect Visualizer" Placement="Placement.Right" Delay="1000">
+                    <MudIconButton Disabled="@(lightHandling?.CurrentData is null)"
+                                    Icon="@Icons.Material.Rounded.BugReport"
                                     Size="Size.Large"
-                                    Toggled="IsWakeLockEnabled"
-                                    ToggledChanged="@SetWakeLock"/>
-        </MudTooltip>
-        @* TODO: Not implemented in MAUI port yet...
-        @if (DebugEnabled)
-        {
-            <MudTooltip Text="DEBUG: Open Effect Visualizer" Placement="Placement.Right" Delay="1000">
-                <MudIconButton Disabled="@(lightHandling?.CurrentData is null)"
-                                Icon="@Icons.Material.Rounded.BugReport"
-                                Size="Size.Large"
-                                OnClick="@(async () => await DebugOpenEffectVisualizer(lightHandling!.CurrentData!))" />
-            </MudTooltip>
-            <!-- Didn't work... Hot Reload changes didn't apply.
-            <MudTooltip Text="DEBUG: Restart NDP And Regenerate Effects" Placement="Placement.Right" Delay="1000">
-                <MudIconButton Disabled="(lightHandling is null)"
-                                Icon="Icons.Material.Rounded.Refresh"
-                                Size="Size.Large"
-                                OnClick="(async () => await DebugRestartServiceAndRegenerateEffects())" />
-            </MudTooltip>
-            -->
-        }
-        *@
-    </MudStack>
-}
-<MudStack AlignItems="AlignItems.End" Style="">
-    @if(Context?.NextTrack is SpotifyPlayerTrack nextTrack)
-    {
-        <MudPaper Elevation="8" Class="next_track_fadein" Style="position: fixed; top:24px; right: 24px; background:#000000AA; padding:16px; border-radius:16px;">
-        <MudStack Row="true" AlignItems="AlignItems.Center">
-            <MudImage Src=@(nextTrack.SmallestImage.Url)
-                    Width="48"
-                    Height="48" />
-            <MudStack Spacing="0">
-                <MudText Style="font-size:small; color:#FFFFFFAA">
-                    Next Track
-                </MudText>
-                <MudText Style="line-height:1.0; font-size:x-large; white-space:nowrap; color:white">
-                    @(nextTrack.Name)
-                </MudText>
-            </MudStack>
+                                    OnClick="@(async () => await DebugOpenEffectVisualizer(lightHandling!.CurrentData!))" />
+                </MudTooltip>
+                <!-- Didn't work... Hot Reload changes didn't apply.
+                <MudTooltip Text="DEBUG: Restart NDP And Regenerate Effects" Placement="Placement.Right" Delay="1000">
+                    <MudIconButton Disabled="(lightHandling is null)"
+                                    Icon="Icons.Material.Rounded.Refresh"
+                                    Size="Size.Large"
+                                    OnClick="(async () => await DebugRestartServiceAndRegenerateEffects())" />
+                </MudTooltip>
+                -->
+            }
+            *@
         </MudStack>
-    </MudPaper>
     }
-</MudStack>
+    <MudStack AlignItems="AlignItems.End" Style="">
+        @if(Context?.NextTrack is SpotifyPlayerTrack nextTrack)
+        {
+            <MudPaper Elevation="8" Class="next_track_fadein" Style="position: fixed; top:24px; right: 24px; background:#000000AA; padding:16px; border-radius:16px;">
+            <MudStack Row="true" AlignItems="AlignItems.Center">
+                <MudImage Src=@(nextTrack.SmallestImage.Url)
+                        Width="48"
+                        Height="48" />
+                <MudStack Spacing="0">
+                    <MudText Style="font-size:small; color:#FFFFFFAA">
+                        Next Track
+                    </MudText>
+                    <MudText Style="line-height:1.0; font-size:x-large; white-space:nowrap; color:white">
+                        @(nextTrack.Name)
+                    </MudText>
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+        }
+    </MudStack>
 </div>
 
 <style>
@@ -202,6 +212,13 @@
 </style>
 
 @code {
+    private const bool IsDebugEnabled =
+#if DEBUG
+    true;
+#else
+    false;
+#endif
+
     const string TimespanFormat = @"mm\:ss";
 
     static readonly FourColorGradient defaultGradient = FourColorGradient.TryCreateFromPalette(NDPDefaultPalettes.DefaultSRGB)!.Value;
@@ -345,6 +362,11 @@
     }
     */
 
+    void OpenDebugCanvas()
+    {
+        navigationManager.NavigateTo("./debug");
+    }
+
     void OpenSettings()
     {
         // Fix back navigation breaking background gradient by force loading (which makes the app force load when navigating backwards)
@@ -477,9 +499,9 @@
 
         // player might be null when page has been disposed
         NDPPlayer.LightData? lights = player?.StopLights();
-        if (lights is NDPPlayer.LightData ld)
+        if (lights.HasValue)
         {
-            foreach (LightHandler handler in ld.Handlers)
+            foreach (LightHandler handler in lights.Value.Handlers)
                 await handler.Stop();
         }
         isPlaying = false;
