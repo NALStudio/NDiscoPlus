@@ -52,7 +52,7 @@
         <MudNumericField @bind-Value=@(Config.LightMetrics.Z) Label="Z" HelperText="@XYZHelperText(Config.LightMetrics.Z, "up", "down")" Variant="Variant.Outlined" Max="1d" Min="-1d" Step="0.05d" />
     </MudStack>
     <MudStack Row>
-        <MudNumericField ReadOnly Value="@(Config.LightMetrics.Width)" Label="Width" Variant="Variant.Outlined" />
+        <MudNumericField ReadOnly Disabled Value="@(Config.LightMetrics.Width)" Label="Width" Variant="Variant.Outlined" />
         <MudNumericField @bind-Value=@(Config.LightMetrics.Height) Label="Height" Variant="Variant.Outlined" Max="1d" Min="-1d" Step="0.05d" />
     </MudStack>
 

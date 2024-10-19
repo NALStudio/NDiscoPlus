@@ -51,7 +51,7 @@ public abstract class BaseScreenLightHandlerConfig : LightHandlerConfig
 public class ScreenMimicLightHandlerConfig : BaseScreenLightHandlerConfig
 {
     public ScreenHorizontalLightsVariant Variant { get; set; } = ScreenHorizontalLightsVariant.Continuous;
-    public double BrightnessMultiplier { get; set; } = 1d;
+    public double BrightnessMultiplier { get; set; } = 0.25d;
 
     public override LightHandler CreateLightHandler()
         => new ScreenMimicLightHandler(this);
