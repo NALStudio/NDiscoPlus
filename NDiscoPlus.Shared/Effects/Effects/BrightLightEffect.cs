@@ -73,7 +73,7 @@ internal sealed class BrightLightEffect : NDPEffect
                 {
                     X = color?.X,
                     Y = color?.Y,
-                    Brightness = api.Config.MaxBrightness,
+                    Brightness = 1d,
                     FadeIn = fadeInDuration,
                     FadeOut = fadeOutDuration
                 };

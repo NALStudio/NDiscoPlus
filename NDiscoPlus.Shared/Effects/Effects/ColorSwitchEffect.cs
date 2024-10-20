@@ -138,7 +138,7 @@ internal class ColorSwitchEffect : NDPEffect
                     {
                         X = col.X,
                         Y = col.Y,
-                        Brightness = api.Config.BaseBrightness,
+                        Brightness = api.Config.EffectBaseBrightness,
                         FadeIn = fadeIn ? duration : TimeSpan.Zero,
                         FadeOut = fadeOut ? duration : TimeSpan.Zero
                     }

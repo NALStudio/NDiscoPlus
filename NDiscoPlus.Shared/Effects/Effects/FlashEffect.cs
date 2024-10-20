@@ -81,7 +81,7 @@ internal class FlashEffect : NDPEffect
                         {
                             X = g.Color.X,
                             Y = g.Color.Y,
-                            Brightness = api.Config.BaseBrightness
+                            Brightness = api.Config.EffectBaseBrightness
                         }
                     );
                 }
@@ -96,7 +96,7 @@ internal class FlashEffect : NDPEffect
                         light.Id,
                         beat.Start,
                         EffectConstants.MinEffectDuration,
-                        brightness: DoubleHelpers.Lerp(api.Config.BaseBrightness, 1d, _kBrightness)
+                        brightness: api.Config.ReducedMaxBrightness
                     )
                 );
             }
