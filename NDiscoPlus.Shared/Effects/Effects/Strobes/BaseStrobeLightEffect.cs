@@ -135,7 +135,7 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
     private static int SyncIntervalEffectsPerSync(int timeSignature, IList<NDPInterval> syncIntervals)
     {
         int effectsPerSync = timeSignature;
-        while (syncIntervals.Any(interval => (interval.Duration / effectsPerSync) < EffectConstants.MinEffectDuration))
+        while (syncIntervals.Any(interval => (interval.Duration / effectsPerSync) <= EffectConstants.MinEffectDuration))
         {
             // DivideBy2RoundUpwards(1) => 1 => infinite loop
             // as we cannot converge into any value after that, we return 0

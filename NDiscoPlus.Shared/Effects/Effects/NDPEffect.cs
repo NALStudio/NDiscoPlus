@@ -6,6 +6,21 @@ using System.Collections.Immutable;
 
 namespace NDiscoPlus.Shared.Effects.Effects;
 
+/* ##### WHEN CREATING ENTERTAINMENT AREAS, PLEASE NOTE THE FOLLOWING #####
+ * 
+ * General:
+ *   - Light X and Z positions are used when generating effects, Y is not.
+ *       - This means that the best results can be achieved by creating an array of lights in front of the user.
+ *       
+ * ColorSwitchEffect
+ *   - Lights are split into groups by distance. A new group is created each time the distance between lights is more than 0,2.
+ *       - Best results can be achieved when groups are approximately equal in size.
+ *       
+ * ColorStripeEffect
+ *   - Lights are split into groups by distance. Stripe starts from the leftmost light and follows the shortest path to the next light.
+ *       - Best results can be achieved when this path is continuous and doesn't have large gaps between lights.
+*/
+
 internal abstract class NDPEffect
 {
     public static readonly ImmutableArray<NDPEffect> All = [
@@ -23,6 +38,9 @@ internal abstract class NDPEffect
         // Miscellaneous
         new ColorSwitchEffect(EffectIntensity.Medium),
         new FlashEffect(EffectIntensity.Medium),
+        new ColorStripeEffect(EffectIntensity.Medium),
+
+        new BrightLightSlowInstantEffect(EffectIntensity.Low),
         new StarPulseEffect(EffectIntensity.Low),
     ];
 

@@ -40,7 +40,7 @@ public interface IHueEntertainmentChannel
         */
 
         Unsafe.As<byte, ushort>(ref bytes[offset]) = color;
-        if (BitConverter.IsLittleEndian)
+        if (BitConverter.IsLittleEndian) // Swap bytes to make result big endian
             Swap(bytes, offset, offset + 1);
     }
 
