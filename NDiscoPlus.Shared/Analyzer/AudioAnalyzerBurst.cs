@@ -98,9 +98,9 @@ internal static class AudioAnalyzerBurst
         if (Timbre.EuclideanDistance(node.SegmentReference.Timbre, refNode.SegmentReference.Timbre) > MaxTimbreDistance)
             return false;
 
-        // ratio valid values: 0,9 - 1,1   (when MaxDurationDifference 0,1)
+        // ratio valid values: 0,9 - 1,1   (when MaxDurationDifferenceRatio 0,1)
         double ratio = node.Interval.Duration.TotalSeconds / refNode.Interval.Duration.TotalSeconds;
-        // diff valid values: -0,1 - 0,1   (when MaxDurationDifference 0,1)
+        // diff valid values: -0,1 - 0,1   (when MaxDurationDifferenceRatio 0,1)
         double diff = ratio - 1d;
         return Math.Abs(diff) <= MaxDurationDifferenceRatio;
     }
@@ -116,8 +116,8 @@ internal static class AudioAnalyzerBurst
 
         static bool VerifyNodeDuration(BurstNode node, Burst burst)
         {
-            const double minDur = 0.10;
-            const double maxDur = 0.20;
+            const double minDur = 0.10; // minimum max duration
+            const double maxDur = 0.20; // maximum max duration
             double maxSegmentDurationSeconds = ((double)burst.Nodes.Count)
                                                 .Remap(4, 12, minDur, maxDur)
                                                 .Clamp(minDur, maxDur);

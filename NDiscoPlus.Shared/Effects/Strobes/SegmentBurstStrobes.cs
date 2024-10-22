@@ -50,18 +50,7 @@ internal class SegmentBurstStrobes : NDPStrobe
         if (IsChannelBusyDuringBurst(channel, burst))
             return;
 
-        int groupCount = burst.Length;
-
-        // reduce the groups to a more manageable count
-        if (groupCount % 5 == 0)
-            groupCount = 5;
-        else if (groupCount % 4 == 0)
-            groupCount = 4;
-        else if (groupCount % 3 == 0)
-            groupCount = 3;
-        else
-            groupCount = 2;
-
+        int groupCount = ReduceGroupCount(burst.Length);
         List<NDPLight[]> lightGroups = channel.Lights.GroupX(groupCount);
 
         // Console.WriteLine(groupCount);
@@ -83,5 +72,18 @@ internal class SegmentBurstStrobes : NDPStrobe
             foreach (NDPLight light in lightGroups[i % groupCount])
                 channel.Add(Effect.CreateStrobe(api.Config, light.Id, b));
         }
+    }
+
+    public static int ReduceGroupCount(int groupCount)
+    {
+        // reduce the groups to a more manageable count
+        if (groupCount % 5 == 0)
+            return 5;
+        if (groupCount % 4 == 0)
+            return 4;
+        if (groupCount % 3 == 0)
+            return 3;
+
+        return 2;
     }
 }

@@ -10,7 +10,8 @@ namespace NDiscoPlus.Shared.Effects.Strobes;
 internal abstract class NDPStrobe
 {
     public static readonly ImmutableArray<NDPStrobe> All = [
-        new SegmentBurstStrobes()
+        new SegmentBurstStrobes(),
+        new SegmentHighlightFlashes()
     ];
     public static readonly ImmutableArray<NDPStrobe> BeforeEffects = All.Where(x => x.StrobeGeneration == StrobeGeneration.BeforeEffects).ToImmutableArray();
     public static readonly ImmutableArray<NDPStrobe> AfterEffects = All.Where(x => x.StrobeGeneration == StrobeGeneration.AfterEffects).ToImmutableArray();

@@ -99,13 +99,8 @@ internal readonly struct NDPSegment
 
 internal class AudioAnalysisSegments
 {
-    public AudioAnalysisSegments(ImmutableArray<NDPSegment> segments, ImmutableArray<ImmutableArray<NDPInterval>> bursts)
-    {
-        Segments = segments;
-        Bursts = bursts;
-    }
+    public required ImmutableArray<NDPSegment> Segments { get; init; }
 
-    public ImmutableArray<NDPSegment> Segments { get; }
-
-    public ImmutableArray<ImmutableArray<NDPInterval>> Bursts { get; }
+    public required ImmutableArray<ImmutableArray<NDPInterval>> Bursts { get; init; }
+    public required ImmutableArray<ImmutableArray<NDPInterval>> Highlights { get; init; }
 }

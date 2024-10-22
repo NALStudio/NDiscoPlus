@@ -22,10 +22,12 @@ internal static class AudioAnalyzer
         );
 
         ImmutableArray<NDPSegment> segmentsArray = analysis.Segments.Select(static s => NDPSegment.FromSpotify(s)).ToImmutableArray();
-        AudioAnalysisSegments segments = new(
-            segments: segmentsArray,
-            bursts: AudioAnalyzerBurst.AnalyzeBursts(segmentsArray).ToImmutableArray()
-        );
+        AudioAnalysisSegments segments = new()
+        {
+            Segments = segmentsArray,
+            Bursts = AudioAnalyzerBurst.AnalyzeBursts(segmentsArray).ToImmutableArray(),
+            Highlights = AudioAnalyzerHighlight.AnalyzeHighlights(segmentsArray).ToImmutableArray()
+        };
 
         ImmutableArray<AudioAnalysisSection> sections = AnalyzeSections(analysis)
                                                             .Select(sec => AudioAnalysisSection.ConstructFromSpotify(timings, sec.OriginalSection, sec.AdjustedInterval))
