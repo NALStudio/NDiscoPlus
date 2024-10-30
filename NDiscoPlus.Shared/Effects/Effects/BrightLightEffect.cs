@@ -35,8 +35,13 @@ internal sealed class BrightLightEffect : NDPEffect
             return;
 
         int animationCount = ctx.Section.Tempo.TimeSignature;
+        if (animationCount <= 1) // TimeSignature can be 1, we ensure that it is over so that the effect renders correctly
+            animationCount *= 2; // 2 * 1 => 2
+        Debug.Assert(animationCount > 1); // Just in case we get an unexpected time signature
+
         int maxSimultaneousAnimations = Math.Max((int)(animationCount * (2d / 3d)), 1);
         // Math.Max since if ctx.TimeSignature == 1, maxSimultaneousAnimations = 0
+        // UPDATE: this will not be the case anymore as we don't allow animationCount == 1
 
         double syncDuration = slow ? ctx.Section.Tempo.SecondsPerBar : ctx.Section.Tempo.SecondsPerBeat;
 
@@ -45,6 +50,7 @@ internal sealed class BrightLightEffect : NDPEffect
         double animationDuration = syncDuration * maxSimultaneousAnimations;
         int lightsPerAnimation = Math.Max(channel.Lights.Count / animationCount, 1);
         // will flash all lights simultaneously if TimeSignature == 1
+        // UPDATE: this will not be the case anymore as we don't allow animationCount == 1
 
         TimeSpan fadeInDuration = TimeSpan.FromSeconds(0.2d * animationDuration);
         TimeSpan fadeOutDuration = TimeSpan.FromSeconds(0.8d * animationDuration);

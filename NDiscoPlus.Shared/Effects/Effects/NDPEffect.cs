@@ -51,7 +51,7 @@ internal abstract class NDPEffect
     public abstract void Generate(EffectContext ctx, EffectAPI api);
 
 
-    /// <summary>An effect specialised in categorisation by intensity.</summary>
+    /// <summary>An effect specialised in categorization by intensity.</summary>
     /// <param name="intensity">Describes the intensity of this effect. 1 (lowest) - 5 (highest)</param>
     protected NDPEffect(EffectIntensity intensity)
     {

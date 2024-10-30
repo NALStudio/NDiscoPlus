@@ -5,6 +5,7 @@ using NDiscoPlus.Shared.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
@@ -16,10 +17,13 @@ public sealed class ChunkedEffectsCollection
     internal readonly struct Chunk
     {
         private readonly List<int> effectIndexes;
-        private readonly List<int> backgroundDisabledIndexes;
+        private readonly ReadOnlyCollection<int> effectIndexesReadonly;
 
-        public IEnumerable<int> EffectIndexes => effectIndexes.AsReadOnly();
-        public IEnumerable<int> BackgroundDisabledIndexes => backgroundDisabledIndexes.AsReadOnly();
+        private readonly List<int> backgroundDisabledIndexes;
+        private readonly ReadOnlyCollection<int> backgroundDisabledIndexesReadonly;
+
+        public IEnumerable<int> EffectIndexes => effectIndexesReadonly;
+        public IEnumerable<int> BackgroundDisabledIndexes => backgroundDisabledIndexesReadonly;
 
         public void AddEffect(int effectIndex)
             => effectIndexes.Add(effectIndex);
@@ -29,7 +33,10 @@ public sealed class ChunkedEffectsCollection
         public Chunk()
         {
             effectIndexes = new();
+            effectIndexesReadonly = effectIndexes.AsReadOnly();
+
             backgroundDisabledIndexes = new();
+            backgroundDisabledIndexesReadonly = backgroundDisabledIndexes.AsReadOnly();
         }
     }
 

@@ -76,14 +76,27 @@ internal class SegmentBurstStrobes : NDPStrobe
 
     public static int ReduceGroupCount(int groupCount)
     {
+        // cases (when reducing with 5, 4 and 3):
+        //   10 => 5
+        //   9 => 3
+        //   8 => 4
+        //   7 => default
+        //   6 => 3
+        //   5 => 5
+        //   4 => 4
+        //   3 => 3
+        //  <3 => default
+
         // reduce the groups to a more manageable count
         if (groupCount % 5 == 0)
             return 5;
         if (groupCount % 4 == 0)
             return 4;
-        if (groupCount % 3 == 0)
-            return 3;
+        // if (groupCount % 3 == 0)
+        //     return 3;
+        // return 2;
 
-        return 2;
+        // Use minimum of 3 instead since with 2, the lights didn't have enough time to turn off before they needed to turn back on thus they looking like a spasming piece of mess
+        return 3;
     }
 }

@@ -17,10 +17,6 @@ internal class FlashEffect : NDPEffect
 {
     private const Channel _kChannel = Channel.Flash;
 
-    // Interpolate from base brightness to max brightness by this value.
-    // We don't use max brightness as I get a migrane from it (it's far too bright)
-    private const double _kBrightness = 0.5d;
-
     public FlashEffect(EffectIntensity intensity) : base(intensity)
     {
     }

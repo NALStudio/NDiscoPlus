@@ -144,6 +144,7 @@ internal static class AudioAnalyzerBurst
 
     // TODO: How to differentiate correct bursts from incorrect ones?
     // Now, some very important bursts are missing and some unnecessary ones exist...
+    // Update: Burst detection is a bit better, mid loudness would be nice though
     public static IEnumerable<ImmutableArray<NDPInterval>> AnalyzeBursts(ImmutableArray<NDPSegment> segments)
     {
         List<Burst> bursts = new() { new() };
@@ -178,6 +179,11 @@ internal static class AudioAnalyzerBurst
             bursts.Add(newBurst);
         }
 
+        // TODO: Merge close-by bursts
+        // like in cases where (b == burst segment, s == normal segment):
+        // ... b b b s b b b ... can be merged as ... b b b [b] b b b ...
+        // where b is burst segment, s is normal segment and [b] is the normal segment split into burst sized chunks
+        // maximum of normal segments can be between bursts before they are merged
 
         // enumerate output
         foreach (Burst burst in bursts)

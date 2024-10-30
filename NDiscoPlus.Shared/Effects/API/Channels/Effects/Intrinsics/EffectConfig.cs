@@ -44,6 +44,6 @@ public class EffectConfig
     //    - "color temperature of approximately 5,600 kelvins"
     // - https://fixthephoto.com/best-strobe-lights-for-photography.html#:~:text=The%20best%20strobe%20lights%20for%20photography%20have%20a,modern%20DSLRs%20allow%20adjusting%20the%20expected%20color%20temperature.
     //    - ^ Check the linked products, they're pretty much all 5600
-    public NDPColor StrobeColor { get; init; } = NDPColor.FromCCT.BlackBody(5600);
+    public NDPColor StrobeColor { get; init; } = NDPColor.FromCCT.BlackBody(5600, brightness: 1d);
     public StrobeStyles StrobeStyle { get; init; } = StrobeStyles.Instant;
 }

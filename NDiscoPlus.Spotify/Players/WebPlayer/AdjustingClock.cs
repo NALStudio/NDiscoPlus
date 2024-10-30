@@ -90,6 +90,11 @@ public partial class NewSpotifyWebPlayer
         {
             this.resetTimestamp = resetTimestamp;
             this.progress = progress;
+
+            // TODO: If spotify provided accurate progress info
+            //       we should compute a new adjust to keep the progress the same
+            //       and then we can move adjust the adjust to move towards the new position
+            //       so that the player doesn't jump suddenly
             adjust = 0L;
 
             HandleTrackChange(trackHasChanged);

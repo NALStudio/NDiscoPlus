@@ -115,6 +115,9 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
             throw new InvalidOperationException($"Sync not possible. Time signature: {ctx.Section.Tempo.TimeSignature}/4");
 
         int groupCount = SyncIntervalGroupCount(ctx.Section.Tempo.TimeSignature, effectsPerSync);
+        if (groupCount < 3)
+            groupCount += 2; // Group count 1 => 3, group count 2 => 4. This is done so that the lights don't just spasm and actually display proper strobes
+        Debug.Assert(groupCount >= 3); // Just in case we get an unexpected group count
 
         int totalEffectsCount = syncIntervals.Count * effectsPerSync;
         NDPInterval[] effects = new NDPInterval[totalEffectsCount];
