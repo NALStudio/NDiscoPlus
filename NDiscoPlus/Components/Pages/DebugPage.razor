@@ -14,6 +14,7 @@
 @using NDiscoPlus.Spotify.Players
 @using NDiscoPlus.Spotify.Players.WebPlayer
 @using SpotifyAPI.Web
+@using System.Diagnostics
 
 @layout SpotifyLayout
 
@@ -30,8 +31,12 @@
         // App crashes if I inline this variable inside MudNavLink
         // no idea why :/
         string name = TrackDebugCanvas.StatNames[i];
-        <MudNavLink Href="@($"/debug/{i}")">@name</MudNavLink>
+        <MudNavLink Href="@($"./debug/{i}")">@name</MudNavLink>
     }
+    
+    <div style="margin-top:16px">
+        <MudNavLink Href="./" Match="NavLinkMatch.All">Back</MudNavLink>
+    </div>
 </MudNavMenu>
 <div style="width:100vw; height:100vh; align-content:center;">
     @if (PageIndex is null)
@@ -69,7 +74,7 @@
 
     record CanvasContext(SpotifyPlayerContext Context, TrackAudioFeatures Features, TrackAudioAnalysis Analysis);
 
-    private CancellationTokenSource? _playerTaskCancellation = null;
+    private SpotifyPlayer? _player = null;
     private Task? _playerTask = null;
 
     protected override async Task OnInitializedAsync()
@@ -79,21 +84,18 @@
 
         await Spotify.WaitForLogin();
 
-        _playerTaskCancellation = new();
-        _playerTask = StartPlayer(_playerTaskCancellation.Token);
+        _player = new NewSpotifyWebPlayer(Spotify.Client!, playerLogger);
+        _playerTask = PlayerLoop();
     }
 
-    async Task StartPlayer(CancellationToken cancellationToken = default)
+    async Task PlayerLoop()
     {
-        if (!Spotify.IsLoggedIn)
-            throw new InvalidOperationException("Spotify not logged in.");
-
-        NewSpotifyWebPlayer player = new NewSpotifyWebPlayer(Spotify.Client, playerLogger);
+        Debug.Assert(Spotify.IsLoggedIn);
 
         (string trackId, TrackAudioFeatures features, TrackAudioAnalysis analysis)? analysis = null;
 
         // We don't really need more than 50 fps
-        await foreach (SpotifyPlayerContext? context in player.ListenAsync(50, cancellationToken))
+        await foreach (SpotifyPlayerContext? context in _player!.ListenAsync(50))
         {
             if (context is null) 
             {
@@ -117,8 +119,7 @@
 
     public async ValueTask DisposeAsync()
     {
-        if (_playerTaskCancellation is not null)
-            await _playerTaskCancellation.CancelAsync();
+        _player?.Dispose();
         if (_playerTask is not null)
             await _playerTask;
     }

@@ -2,6 +2,7 @@
 using MudBlazor;
 using MudBlazor.Services;
 using NDiscoPlus.Code;
+using NDiscoPlus.Code.EffectVisualizer;
 using NDiscoPlus.Code.FocusModeProvider;
 
 namespace NDiscoPlus;
@@ -22,6 +23,7 @@ public static class MauiProgram
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
         builder.Logging.AddDebug();
+
 #endif
 
         builder.Services.AddMudServices(config =>
@@ -34,6 +36,9 @@ public static class MauiProgram
         });
 
         builder.Services.AddSingleton<SpotifyService>();
+
+        // Not inside '#if DEBUG' since HomePage can't determine if it should inject this service or not
+        builder.Services.AddSingleton<DebugEffectVisualizerDataService>();
 
         builder.Services.AddScoped<IFocusModeProvider>(static _ =>
         {

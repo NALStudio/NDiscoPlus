@@ -146,9 +146,20 @@ internal partial class NDPPlayer : IDisposable
         DataRecord.ColorPaletteData? palette = player.Current.RequestPalette();
         _ = player.Next.RequestPalette(); // pre-request palette for next track
 
+        NDPData? debugData = player.Current.TryGetDataWithoutRequest();
+        ChunkedEffectsCollection.ExportedData? debugExportedData = null;
+        if (debugData is not null)
+            debugExportedData = new(debugData.Track.Id, debugData.Effects);
+
         lock (sharedLock)
         {
-            shared = new(ctx, palette?.Palette, palette?.Gradient, screenLightHandlers);
+            shared = new(
+                ctx,
+                palette?.Palette,
+                palette?.Gradient,
+                screenLightHandlers,
+                debugExportedData
+            );
         }
     }
 

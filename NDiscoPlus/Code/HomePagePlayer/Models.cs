@@ -24,7 +24,8 @@ internal partial class NDPPlayer
         SpotifyPlayerContext? PlayerState,
         NDPColorPalette? CurrentTrackPalette,
         FourColorGradient? CurrentTrackPaletteGradient, // null if less than 4 colors available
-        ImmutableArray<BaseScreenLightHandler>? ScreenLightHandlers
+        ImmutableArray<BaseScreenLightHandler>? ScreenLightHandlers,
+        ChunkedEffectsCollection.ExportedData? CurrentTrackEffectsExported
     );
 
     public readonly struct LightData

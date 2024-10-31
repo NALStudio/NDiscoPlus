@@ -1,0 +1,69 @@
+﻿@page "/debug/effectVisualizer"
+
+@using Microsoft.Extensions.Logging
+@using NDiscoPlus.Code
+@using NDiscoPlus.Code.EffectVisualizer
+@using NDiscoPlus.Code.JavaScriptInterop
+@using NDiscoPlus.Components.Elements.EffectVisualizer
+@using NDiscoPlus.Shared.Models
+@using NDiscoPlus.Spotify.Models
+@using NDiscoPlus.Spotify.Players
+@using NDiscoPlus.Spotify.Players.WebPlayer
+@using System.Diagnostics
+
+@inject SpotifyService Spotify
+@inject ILogger<NewSpotifyWebPlayer> playerLogger
+@inject DebugEffectVisualizerDataService dataService
+@inject IJSRuntime JSRuntime
+
+@implements IAsyncDisposable
+
+<div style="width:100vw; height:100vh; align-content:center;">
+@if (context?.Track.Id == data!.Value.TrackId)
+{
+    <img width="256"
+            src="@(context.Track.LargestImage.Url)"
+            style="display:block; margin-left:auto; margin-right:auto;" />
+    <h3 style="text-align:center;">@(context.Track.Name)</h3>
+    <DebugEffectVisualizerComponent Data="@(data!.Value)" TrackLength="@(context.Track.Length)" />
+}
+</div>
+
+@code {
+    private ChunkedEffectsCollection.ExportedData? data;
+    private SpotifyPlayerContext? context = null;
+
+    private SpotifyPlayer? _player = null;
+    private Task? _playerTask = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        data = dataService.GetData();
+
+        await Spotify.WaitForLogin();
+
+        _player = new NewSpotifyWebPlayer(Spotify.Client!, playerLogger);
+        _playerTask = PlayerLoop();
+    }
+
+    async Task PlayerLoop()
+    {
+        Debug.Assert(Spotify.IsLoggedIn);
+
+        await foreach (SpotifyPlayerContext? context in _player!.ListenAsync(1))
+        {
+            bool trackChanged = this.context?.Track.Id != context?.Track.Id;
+            this.context = context;
+
+            if (trackChanged)
+                StateHasChanged();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _player?.Dispose();
+        if (_playerTask is not null)
+            await _playerTask;
+    }
+}

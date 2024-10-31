@@ -1,0 +1,186 @@
+﻿@using Excubo.Blazor.Canvas
+@using Excubo.Blazor.Canvas.Contexts
+@using NDiscoPlus.Shared.Effects.API.Channels.Effects
+@using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics
+@using NDiscoPlus.Shared.Helpers
+@using NDiscoPlus.Shared.Models
+@using NDiscoPlus.Shared.Models.Color
+@using SkiaSharp
+@using SpotifyAPI.Web
+@using System.Text.Json
+@using System.Diagnostics
+
+@using ExportedData = NDiscoPlus.Shared.Models.ChunkedEffectsCollection.ExportedData;
+
+<div style="overflow-x: scroll">
+    <Canvas width=@canvasWidth
+            height=@canvasHeight
+            @ref=_canvas />
+</div>
+
+@code {
+    const int canvasWidth = 5000;
+    int canvasHeight = 0;
+    const int rowHeight = 25;
+
+    private Canvas? _canvas;
+
+    [Parameter, EditorRequired]
+    public ExportedData Data { get; set; }
+
+    [Parameter, EditorRequired]
+    public TimeSpan TrackLength { get; set; }
+
+    public class PositionTransformer
+    {
+        public TimeSpan TrackLength { get; }
+
+        public PositionTransformer(TimeSpan trackLength)
+        {
+            TrackLength = trackLength;
+        }
+
+        public double Transform(TimeSpan time)
+            => Transform(time.TotalSeconds);
+
+        public double Transform(double timeSeconds)
+        {
+            double progress = timeSeconds / TrackLength.TotalSeconds;
+            return progress * canvasWidth;
+        }
+    }
+
+
+    private Task? renderTask = null;
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Because unlike Blazor WASM, Blazor MAUI is multithreaded
+        // we must keep track of the render task
+        // to make sure no two renders are running concurrently
+        // or otherwise we seem to corrupt the entire JS engine :D
+        if (renderTask?.IsCompleted != false)
+            renderTask = RenderAsync();
+    }
+
+    private async Task RenderAsync()
+    {
+        await using (Context2D ctx = await _canvas!.GetContext2DAsync())
+        {
+            await using (Batch2D batch = ctx.CreateBatch())
+            {
+                await batch.ClearRectAsync(0d, 0d, canvasWidth, canvasHeight);
+                int height = await InternalRenderAsync(batch, Data, new PositionTransformer(TrackLength), null);
+                if (height != canvasHeight)
+                {
+                    canvasHeight = height;
+                    StateHasChanged();
+                }
+            }
+        }
+    }
+
+    private static async Task<int> InternalRenderAsync(Batch2D ctx, ExportedData data, PositionTransformer transformer, TrackAudioAnalysis? analysis)
+    {
+        Random random = new();
+
+        int y = 0;
+        IGrouping<LightId, Effect>[] grouped = data.Effects.GroupBy(static e => e.LightId).ToArray();
+        for (int i = 0; i < grouped.Length; i++)
+        {
+            double colorHue = (i / (double)grouped.Length);
+
+            SKColor color = SKColor.FromHsv((float)(colorHue * 360d), 10f, 50f);
+            y += await RenderLight(ctx, transformer, y, color, grouped[i]);
+        }
+
+        if (analysis is not null)
+        {
+            await RenderIntervals(ctx, transformer, y, "#ff0000", analysis.Beats);
+            // await RenderIntervals(ctx, transformer, y, "#0000ff", analysis.Bars);
+        }
+
+        return y;
+    }
+
+    private static async Task RenderIntervals(Batch2D ctx, PositionTransformer transformer, int height, string color, List<TimeInterval> beats)
+    {
+        await ctx.StrokeStyleAsync(color);
+        await ctx.LineWidthAsync(1d);
+
+        foreach (TimeInterval beat in beats)
+        {
+            double x = transformer.Transform(beat.Start);
+            await ctx.BeginPathAsync();
+            await ctx.MoveToAsync(x, 0d);
+            await ctx.LineToAsync(x, height);
+            await ctx.StrokeAsync();
+        }
+    }
+
+    private static async Task<int> RenderLight(Batch2D ctx, PositionTransformer transformer, int y, SKColor background, IEnumerable<Effect> effects_)
+    {
+        Effect[] effects = effects_.ToArray();
+
+        List<List<Effect>> computed = new();
+        for (int i = 0; i < effects.Length; i++)
+        {
+            Effect effect = effects[i];
+
+            int yIndex = 0;
+            List<Effect> yEffects;
+            while (true)
+            {
+                if (yIndex >= computed.Count)
+                    computed.Add(new());
+                yEffects = computed[yIndex];
+                if (yEffects.Any(e => e.End >= effect.Start && e.Start < effect.End))
+                    yIndex++;
+                else
+                    break;
+            }
+            yEffects.Add(effect);
+        }
+
+        int height = computed.Count * rowHeight;
+
+        await ctx.FillStyleAsync($"#{background.Red:x2}{background.Green:x2}{background.Blue:x2}");
+        await ctx.FillRectAsync(0d, y, canvasWidth, height);
+
+        for (int effectY = 0; effectY < computed.Count; effectY++)
+        {
+            foreach (Effect effect in computed[effectY])
+                await RenderEffect(ctx, transformer, y + effectY * rowHeight, rowHeight, effect);
+        }
+
+        return height;
+    }
+
+    private static async Task RenderEffect(Batch2D ctx, PositionTransformer transformer, int y, int height, Effect effect)
+    {
+        double posX = transformer.Transform(effect.Position);
+
+        NDPColor effectColor = effect.GetColor(NDPColor.FromLinearRGB(1d, 1d, 1d));
+        await ctx.FillStyleAsync(ColorHelpers.ToHTMLColorXYZ(effectColor));
+        await ctx.FillRectAsync(posX, y, transformer.Transform(effect.Duration), height);
+
+        if (effect.FadeIn > TimeSpan.Zero)
+        {
+            await ctx.BeginPathAsync();
+            await ctx.MoveToAsync(transformer.Transform(effect.Start), y + height);
+            await ctx.LineToAsync(posX + 0.5d, y); // + 0.5d since rounding errors produce ugly thin lines between segments
+            await ctx.LineToAsync(posX + 0.5d, y + height);
+            await ctx.FillAsync(FillRule.NonZero);
+        }
+
+        if (effect.FadeOut > TimeSpan.Zero)
+        {
+            double endX = transformer.Transform(effect.Position + effect.Duration);
+
+            await ctx.BeginPathAsync();
+            await ctx.MoveToAsync(transformer.Transform(effect.End), y + height);
+            await ctx.LineToAsync(endX, y);
+            await ctx.LineToAsync(endX, y + height);
+            await ctx.FillAsync(FillRule.NonZero);
+        }
+    }
+}

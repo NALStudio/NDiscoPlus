@@ -109,7 +109,12 @@ internal partial class NDPPlayer
 
             data ??= Task.Run(() => GetData(spotify, Track, lights));
 
-            if (data.IsCompleted)
+            return TryGetDataWithoutRequest();
+        }
+
+        public NDPData? TryGetDataWithoutRequest()
+        {
+            if (data?.IsCompleted == true)
                 return data.Result;
             else
                 return null;

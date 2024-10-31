@@ -12,6 +12,8 @@ public partial class NewSpotifyWebPlayer : SpotifyPlayer
 
     public NewSpotifyWebPlayer(SpotifyClient spotify, ILogger<NewSpotifyWebPlayer>? logger = null)
     {
+        ArgumentNullException.ThrowIfNull(spotify);
+
         this.spotify = spotify;
         this.logger = logger;
     }

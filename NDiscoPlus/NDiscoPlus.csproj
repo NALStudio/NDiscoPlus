@@ -80,4 +80,22 @@
       </PackageReference>
     </ItemGroup>
 
+    <ItemGroup>
+      <Compile Update="MauiDebugPage.xaml.cs">
+        <DependentUpon>MauiDebugPage.xaml</DependentUpon>
+      </Compile>
+      <Compile Update="MauiEffectVisualizerPage.xaml.cs">
+        <DependentUpon>MauiEffectVisualizerPage.xaml</DependentUpon>
+      </Compile>
+    </ItemGroup>
+
+    <ItemGroup>
+      <MauiXaml Update="MauiDebugPage.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </MauiXaml>
+      <MauiXaml Update="MauiEffectVisualizerPage.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </MauiXaml>
+    </ItemGroup>
+
 </Project>

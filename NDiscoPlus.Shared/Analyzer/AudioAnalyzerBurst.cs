@@ -84,6 +84,7 @@ internal static class AudioAnalyzerBurst
     const double MaxTimbreDistance = 100d;
     const int MinBurstLength = 4;
     const double MinBurstSegmentConfidence = 0.15d;
+    const double MinBurstMaxVolumeDb = -15d;
 
     private static bool NodeCanBeAddedToBurst(BurstNode node, Burst burst)
     {
@@ -137,7 +138,9 @@ internal static class AudioAnalyzerBurst
         if (!burst.Nodes.All(n => VerifyNodeDuration(n, burst)))
             return false;
 
-        // minimum burst loudness ???
+        // Verify minimum volume
+        if (!burst.Nodes.All(static n => AudioAnalysisHelpers.SegmentHasProperSound(n.SegmentReference)))
+            return false;
 
         return true;
     }

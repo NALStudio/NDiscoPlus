@@ -21,6 +21,8 @@ internal static class AudioAnalyzerHighlight
     private const int MinHighlightSegmentCount = 3; // 3 had too many misfires
     private const int MaxHighlightSegmentCount = 8;
 
+    private const double MaxSegmentDuration = 0.25d;
+
     private class Highlight
     {
         public double StartingTimbreDistance { get; }
@@ -163,6 +165,14 @@ internal static class AudioAnalyzerHighlight
         if (highlight.Segments.Count < MinHighlightSegmentCount)
             return false;
         if (highlight.Segments.Count > MaxHighlightSegmentCount)
+            return false;
+
+        // All segments must be above minimum volume
+        if (!highlight.Segments.All(static s => AudioAnalysisHelpers.SegmentHasProperSound(s)))
+            return false;
+
+        // All segments must be less than max duration
+        if (highlight.Segments.Any(static s => s.Interval.Duration.TotalSeconds > MaxSegmentDuration))
             return false;
 
         return true;

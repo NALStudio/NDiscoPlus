@@ -3,6 +3,7 @@
 @using Microsoft.Extensions.Logging
 @using MudBlazor.Utilities
 @using NDiscoPlus.Code
+@using NDiscoPlus.Code.EffectVisualizer
 @using NDiscoPlus.Code.FocusModeProvider
 @using NDiscoPlus.Code.HomePagePlayer
 @using NDiscoPlus.Code.JavaScriptInterop
@@ -43,6 +44,7 @@
 @inject ISnackbar Snackbar
 @inject SpotifyService Spotify
 @inject IFocusModeProvider focusMode
+@inject DebugEffectVisualizerDataService effectVisualizerDataService
 
 @implements IAsyncDisposable
 
@@ -150,27 +152,13 @@
                                    Size="Size.Large"
                                    OnClick="@OpenDebugCanvas" />
                 </MudTooltip>
-            }
-
-            @* Not yet implemented in MAUI Blazor version of this app
-            @if (DebugEnabled)
-            {
                 <MudTooltip Text="DEBUG: Open Effect Visualizer" Placement="Placement.Right" Delay="1000">
-                    <MudIconButton Disabled="@(lightHandling?.CurrentData is null)"
-                                    Icon="@Icons.Material.Rounded.BugReport"
+                    <MudIconButton Disabled="@(data?.CurrentTrackEffectsExported.HasValue != true)"
+                                    Icon="@(Icons.Material.Rounded.BugReport)"
                                     Size="Size.Large"
-                                    OnClick="@(async () => await DebugOpenEffectVisualizer(lightHandling!.CurrentData!))" />
+                                    OnClick="@(() => DebugOpenEffectVisualizer(data!.Value.CurrentTrackEffectsExported!.Value))" />
                 </MudTooltip>
-                <!-- Didn't work... Hot Reload changes didn't apply.
-                <MudTooltip Text="DEBUG: Restart NDP And Regenerate Effects" Placement="Placement.Right" Delay="1000">
-                    <MudIconButton Disabled="(lightHandling is null)"
-                                    Icon="Icons.Material.Rounded.Refresh"
-                                    Size="Size.Large"
-                                    OnClick="(async () => await DebugRestartServiceAndRegenerateEffects())" />
-                </MudTooltip>
-                -->
             }
-            *@
         </MudStack>
     }
     <MudStack AlignItems="AlignItems.End" Style="">
@@ -333,26 +321,16 @@
     #endregion
 
     #region Button Handlers
-    /* TODO: Missing after porting to MAUI
-    async Task DebugOpenEffectVisualizer(NDPData data)
+    void DebugOpenEffectVisualizer(ChunkedEffectsCollection.ExportedData data)
     {
-    ArgumentNullException.ThrowIfNull(data, nameof(data));
-
-    string serializedData = NDPData.Serialize(data);
-    await localStorage.SetItemAsStringAsync("effectVisualizerNDPData", serializedData);
-
-        TrackAudioAnalysis? analysis;
-        if (Spotify.IsLoggedIn)
-        analysis = await Spotify.Client.Tracks.GetAudioAnalysis(data.Track.Id);
-    else
-    analysis = null;
-
-    string serializedAnalysis = analysis is not null ? JsonSerializer.Serialize(analysis) : string.Empty;
-    await localStorage.SetItemAsStringAsync("effectVisualizerTrackAnalysis", serializedAnalysis);
-
-    await JSRuntime.InvokeVoidAsync("open", navigationManager.ToAbsoluteUri($"./effectVisualizer").AbsoluteUri, "_blank");
+        effectVisualizerDataService.SetData(data);
+        Application.Current!.OpenWindow(
+            new Window()
+            {
+                Page = new MauiEffectVisualizerPage()
+            }
+        );
     }
-    */
 
     /* Didn't work... Hot Reload changes didn't apply
     async Task DebugRestartServiceAndRegenerateEffects()
@@ -364,7 +342,12 @@
 
     void OpenDebugCanvas()
     {
-        navigationManager.NavigateTo("./debug");
+        Application.Current!.OpenWindow(
+            new Window()
+            {
+                Page = new MauiDebugPage()
+            }
+        );
     }
 
     void OpenSettings()
