@@ -64,7 +64,7 @@ internal class ColorStripeEffect : NDPEffect
         }
     }
 
-    private static List<NDPLight> ComputePath(NDPLightCollection lightCollection)
+    public static List<NDPLight> ComputePath(NDPLightCollection lightCollection)
     {
         static double EuclideanDistance(LightPosition a, LightPosition b)
         {

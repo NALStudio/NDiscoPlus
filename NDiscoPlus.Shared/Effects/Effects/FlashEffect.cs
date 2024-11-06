@@ -63,6 +63,11 @@ internal class FlashEffect : NDPEffect
             } while (newColor == currentGroup.Color);
             currentGroup.Color = newColor;
 
+            TimeSpan duration = beat.Duration;
+            TimeSpan flashDuration = EffectConstants.MinEffectDuration;
+
+            TimeSpan start = beat.Start - (flashDuration / 2);
+
             // Update all lights with background color
             foreach (LightGroup g in groups)
             {
@@ -71,8 +76,8 @@ internal class FlashEffect : NDPEffect
                     channel.Add(
                         new Effect(
                             l.Id,
-                            beat.Start,
-                            beat.Duration
+                            start,
+                            duration
                         )
                         {
                             X = g.Color.X,
@@ -90,8 +95,8 @@ internal class FlashEffect : NDPEffect
                 channel.Add(
                     new Effect(
                         light.Id,
-                        beat.Start,
-                        EffectConstants.MinEffectDuration,
+                        start,
+                        flashDuration,
                         brightness: api.Config.ReducedMaxBrightness
                     )
                 );

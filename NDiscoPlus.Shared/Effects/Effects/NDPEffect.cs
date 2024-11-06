@@ -29,11 +29,12 @@ internal abstract class NDPEffect
         BrightLightEffect.Slow(EffectIntensity.VeryLow),
         BrightLightEffect.White(EffectIntensity.VeryHigh),
 
-        // Strobe effect
+        // Strobe effects
         new GroupedStrobeLightEffect(GroupedStrobeLightEffect.GroupingType.Horizontal, EffectIntensity.Maximum),
         new GroupedStrobeLightEffect(GroupedStrobeLightEffect.GroupingType.Vertical, EffectIntensity.Maximum),
         new GroupedStrobeLightEffect(GroupedStrobeLightEffect.GroupingType.RandomPattern, EffectIntensity.Maximum),
         // new RandomStrobeLightEffect(EffectIntensity.Maximum), // Deprecated
+        new StrobeStripeEffect(EffectIntensity.Maximum),
 
         // Miscellaneous
         new ColorSwitchEffect(EffectIntensity.Medium),

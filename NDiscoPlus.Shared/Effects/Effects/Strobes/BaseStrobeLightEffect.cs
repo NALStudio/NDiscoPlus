@@ -74,9 +74,9 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
 
         NDPLightCollection lights = channel.Lights;
 
-        ClearChannelsForStrobes(ctx, api);
-
         (int groupCount, ImmutableArray<NDPInterval> syncIntervals) = GenerateSyncIntervals(ctx);
+
+        ClearChannelsForStrobes(api, syncIntervals);
 
         int frameCount = syncIntervals.Length;
         ImmutableArray<LightGroup> groups = Group(ctx, lights, frameCount, groupCount).ToImmutableArray();
@@ -96,7 +96,7 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
     /// </returns>
     protected abstract IEnumerable<LightGroup> Group(EffectContext ctx, NDPLightCollection lights, int frameCount, int groupCount);
 
-    private static (int GroupCount, ImmutableArray<NDPInterval> SyncIntervals) GenerateSyncIntervals(EffectContext ctx)
+    public static (int GroupCount, ImmutableArray<NDPInterval> SyncIntervals) GenerateSyncIntervals(EffectContext ctx)
     {
         int effectsPerSync = SyncIntervalEffectsPerSync(ctx.Section.Tempo.TimeSignature, ctx.Section.Timings.Tatums);
         IList<NDPInterval> syncIntervals = ctx.Section.Timings.Tatums;
@@ -172,15 +172,10 @@ internal abstract class BaseStrobeLightEffect : NDPEffect
         }
     }
 
-    private static void ClearChannelsForStrobes(EffectContext ctx, EffectAPI api)
+    public static void ClearChannelsForStrobes(EffectAPI api, ImmutableArray<NDPInterval> timings)
     {
-        // we sync using beats currently, but this might change in the future
-        NDPInterval lastSyncObject = ctx.Section.Timings.Beats[^1];
-        TimeSpan strobeEnd = lastSyncObject.End;
-        // Debug.Assert(strobeEnd >= ctx.End); This assert seemed to cause some crashes
-
-        TimeSpan clearStart = ctx.Section.Interval.Start;
-        TimeSpan clearEnd = strobeEnd;
+        TimeSpan clearStart = timings.Min(static t => t.Start);
+        TimeSpan clearEnd = timings.Max(static t => t.End);
         TimeSpan clearLength = clearEnd - clearStart;
 
         // Use strobe color so that the color is consistent when interpolating brightness
