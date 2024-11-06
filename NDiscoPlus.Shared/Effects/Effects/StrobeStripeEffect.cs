@@ -37,6 +37,7 @@ internal sealed class StrobeStripeEffect : NDPEffect
                 NDPLight light = path[lightIndex];
 
                 int strobeIndex = lightIndex - timingIndex;
+                // Negative modulo is handled correctly as 3 % 3 => 0 and -3 % 3 => 0
                 if ((strobeIndex % groupCount) == 0)
                     channel.Add(Effect.CreateStrobe(api.Config, light.Id, interval));
             }

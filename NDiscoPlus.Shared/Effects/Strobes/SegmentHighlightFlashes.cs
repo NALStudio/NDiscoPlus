@@ -1,6 +1,7 @@
 ﻿using NDiscoPlus.Shared.Effects.API;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects;
 using NDiscoPlus.Shared.Effects.API.Channels.Effects.Intrinsics;
+using NDiscoPlus.Shared.Helpers;
 using NDiscoPlus.Shared.Models;
 using NDiscoPlus.Shared.Models.Color;
 using System;
@@ -51,14 +52,12 @@ internal class SegmentHighlightFlashes : NDPStrobe
         int groupCount = SegmentBurstStrobes.ReduceGroupCount(highlight.Length);
         List<NDPLight[]> lightGroups = channel.Lights.GroupX(groupCount);
 
-        int colorIndex = ctx.Random.Next(ctx.Palette.Count);
+        NDPColor color = ctx.Random.Choice((IReadOnlyList<NDPColor>)ctx.Palette.Colors);
+        color = color.CopyWith(brightness: 1d);
 
         for (int i = 0; i < highlight.Length; i++)
         {
             NDPInterval h = highlight[i];
-
-            NDPColor color = ctx.Palette[(colorIndex + i) % ctx.Palette.Count]
-                                .CopyWith(brightness: 1d);
 
             foreach (NDPLight light in lightGroups[i % groupCount])
             {

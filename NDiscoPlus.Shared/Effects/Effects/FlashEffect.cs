@@ -164,18 +164,24 @@ internal class FlashEffect : NDPEffect
 
         foreach (EffectChannel channel in api.Channels)
         {
-            // Only clear channels that have priority lower than or equal to us
-            // and if we clear channels after _kChannel, we override this effect with black.
+            // Only clear channels that have priority lower than us (to preserve other flashes and/or strobes)
             if (channel.Channel > _kChannel)
                 break;
 
-            // Cannot be consolidated into a single function with strobe lights since we filter out specific channels
+            // This method cannot be consolidated into a single function with strobe lights since we filter out specific channels
+
             channel.Clear(clearInterval.Start, clearInterval.End);
-            foreach (NDPLight light in channel.Lights)
+
+            // we can't set this channel as black since the effect starts a tad bit earlier to account for latency
+            // thus this black would override our effect.
+            if (channel.Channel < _kChannel)
             {
-                // reset color doesn't matter as we don't interpolate between colors
-                NDPColor resetColor = light.ColorGamut.GamutBlack();
-                channel.Add(new Effect(light.Id, clearInterval.Start, clearInterval.Duration, resetColor));
+                foreach (NDPLight light in channel.Lights)
+                {
+                    // reset color doesn't matter as we don't interpolate between colors
+                    NDPColor resetColor = light.ColorGamut.GamutBlack();
+                    channel.Add(new Effect(light.Id, clearInterval.Start, clearInterval.Duration, resetColor));
+                }
             }
         }
     }

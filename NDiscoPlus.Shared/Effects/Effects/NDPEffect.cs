@@ -16,7 +16,7 @@ namespace NDiscoPlus.Shared.Effects.Effects;
  *   - Lights are split into groups by distance. A new group is created each time the distance between lights is more than 0,2.
  *       - Best results can be achieved when groups are approximately equal in size.
  *       
- * ColorStripeEffect
+ * ColorStripeEffect, StrobeStripeEffect
  *   - Lights are split into groups by distance. Stripe starts from the leftmost light and follows the shortest path to the next light.
  *       - Best results can be achieved when this path is continuous and doesn't have large gaps between lights.
 */
