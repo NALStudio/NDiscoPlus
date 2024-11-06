@@ -220,6 +220,9 @@ public partial class NewSpotifyWebPlayer : SpotifyPlayer
 
         if (isPlaying)
         {
+            // BUG: When user adds or removes a song from the queue, the modified timestamp gets changed
+            // and thus firing a clock reset. This is fine for now, but I should probably look into returning
+            // to the old progress based way of determining if a seek happened.
             if (statesLastModifiedTimestampMs != clockLastModifiedTimestampMs)
             {
                 decimal? progressBefore = null;

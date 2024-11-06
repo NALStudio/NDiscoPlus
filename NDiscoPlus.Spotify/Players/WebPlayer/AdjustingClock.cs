@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -36,7 +37,7 @@ public partial class NewSpotifyWebPlayer
         private bool spotifyIsFuckingWithUs = false;
         private static readonly long spotifyIsFuckingWithUsAmount = -1450L * TimeConversions.TicksPerMs;
         private static readonly long spotifyIsFuckingWithUsAtLeastBefore = 30L * TimeConversions.TicksPerSecond;
-        private static readonly string spotifyIsFuckingWithUsOverMessage = $"Over {spotifyIsFuckingWithUsAtLeastBefore / (decimal)TimeConversions.TicksPerSecond:0.0} seconds has passed.";
+        private static readonly string spotifyIsFuckingWithUsOverMessage = $"Over {spotifyIsFuckingWithUsAtLeastBefore / (decimal)TimeConversions.TicksPerSecond:0.0} seconds have passed.";
 
         // Adjust input progress when we think that spotify is fucking with us
         private void AdjustProgress(ref long progress)
@@ -88,22 +89,39 @@ public partial class NewSpotifyWebPlayer
 
         public void Reset(long resetTimestamp, long progress, bool trackHasChanged)
         {
+            long? progressBefore = HasBeenReset ? GetProgress(resetTimestamp) : null;
+
             this.resetTimestamp = resetTimestamp;
             this.progress = progress;
 
-            // TODO: If spotify provided accurate progress info
-            //       we should compute a new adjust to keep the progress the same
-            //       and then we can move adjust the adjust to move towards the new position
-            //       so that the player doesn't jump suddenly
-            adjust = 0L;
+            bool keepClockProgress = HandleTrackChange(trackHasChanged);
+            // Progress can only be kept if the clock has been reset before (and thus progressBefore is fetchable)
+            if (!keepClockProgress || !progressBefore.HasValue)
+            {
+                // If we don't need to keep clock progress, we can reset adjust as well to get the most accurate time possible
+                adjust = 0L;
+            }
+            else
+            {
+                // Keep clock progress the same by adjusting the adjust so that the progress stays the same
+                long progressAfter = GetProgress(resetTimestamp);
+                adjust += progressBefore.Value - progressAfter;
 
-            HandleTrackChange(trackHasChanged);
+#if DEBUG
+                // extract assertProgress into a separate variable so that the debugger can inspect its value
+                long assertProgress = GetProgress(resetTimestamp);
+                Debug.Assert(assertProgress == progressBefore);
+#endif
+                logger?.LogInformation("Clock progress was kept. Clock will gradually move towards the target progress instead.");
+            }
 
             HasBeenReset = true;
         }
 
-        private void HandleTrackChange(bool trackHasChanged)
+        private bool HandleTrackChange(bool trackHasChanged)
         {
+            bool keepClockProgress = false;
+
             // Reset spotifyIsFuckingWithUs
             // or if it's already set, set it as false so that we know
             // that we are measuring time properly now
@@ -115,11 +133,16 @@ public partial class NewSpotifyWebPlayer
                     logger?.LogInformation("Activated clock adjust for track start.");
                 }
             }
-            else
+            else if (spotifyIsFuckingWithUs)
             {
                 spotifyIsFuckingWithUs = false;
                 LogClockAdjustDeactivate("Spotify provided accurate progress info.");
+
+                // Try to keep clock progress and adjust to the new progress gradually
+                keepClockProgress = true;
             }
+
+            return keepClockProgress;
         }
 
         public void ThrowIfNotReset()
