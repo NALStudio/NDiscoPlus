@@ -103,16 +103,28 @@ public partial class NewSpotifyWebPlayer
             }
             else
             {
-                // Keep clock progress the same by adjusting the adjust so that the progress stays the same
                 long progressAfter = GetProgress(resetTimestamp);
-                adjust += progressBefore.Value - progressAfter;
+                long adjustAmount = progressBefore.Value - progressAfter;
+
+                // Keep clock progress if clock difference is less than 2 seconds (1 second tolerance was too small if the previous track was skipped)
+                if (Math.Abs(adjustAmount) < (2 * TimeConversions.TicksPerSecond))
+                {
+                    // Keep clock progress the same by adjusting the adjust so that the progress stays the same
+                    adjust += adjustAmount;
 
 #if DEBUG
-                // extract assertProgress into a separate variable so that the debugger can inspect its value
-                long assertProgress = GetProgress(resetTimestamp);
-                Debug.Assert(assertProgress == progressBefore);
+                    // extract assertProgress into a separate variable so that the debugger can inspect its value
+                    long assertProgress = GetProgress(resetTimestamp);
+                    Debug.Assert(assertProgress == progressBefore);
 #endif
-                logger?.LogInformation("Clock progress was kept. Clock will gradually move towards the target progress instead.");
+                    logger?.LogInformation("Clock progress was kept. Clock will gradually move towards the target progress instead.");
+                }
+                else
+                {
+                    // We don't keep clock progress, reset adjust for accurate time keeping
+                    adjust = 0L;
+                    logger?.LogInformation("Clock progress was NOT kept. Clock jump was too large.");
+                }
             }
 
             HasBeenReset = true;
