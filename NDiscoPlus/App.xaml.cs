@@ -1,4 +1,5 @@
-﻿namespace NDiscoPlus;
+﻿
+namespace NDiscoPlus;
 
 public partial class App : Application
 {
